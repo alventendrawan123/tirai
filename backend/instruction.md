@@ -6,6 +6,26 @@ Dokumen ini adalah kontrak satu arah: **frontend tidak akan move ke Phase 4 samp
 
 Baca dulu `../README.md` untuk konteks produk dan privacy boundary, lalu `../frontend/rules/rules.md` §0, §12, dan §14 untuk aturan engineering yang sudah dipakai frontend.
 
+### Sumber daya Cloak (wajib bookmark)
+
+| Resource | URL |
+|---|---|
+| Website | https://cloak.ag |
+| SDK introduction | https://docs.cloak.ag/sdk/introduction |
+| SDK quickstart | https://docs.cloak.ag/sdk/quickstart |
+| API reference | https://docs.cloak.ag/sdk/api-reference |
+| GitHub | https://github.com/cloak-ag/ |
+| Hackathon track | https://superteam.fun/earn/listing/cloak-track |
+| Coordinator (Telegram) | @matheusmxd |
+
+**Install Claude Code skills sebelum mulai** (sangat menghemat waktu — auto-load context SDK Cloak ke Claude):
+
+```bash
+npx @cloak.dev/claude-skills
+```
+
+Memberi 4 slash commands: `/cloak-shield`, `/cloak-send`, `/cloak-pay`, `/cloak-swap`. Setiap command sudah bawa pattern call SDK lengkap, jadi prototyping cepat tanpa baca API reference dulu.
+
 ---
 
 ## Daftar Isi
@@ -21,6 +41,10 @@ Baca dulu `../README.md` untuk konteks produk dan privacy boundary, lalu `../fro
 9. [Testing strategy](#9-testing-strategy)
 10. [Urutan delivery](#10-urutan-delivery)
 11. [Definition of done](#11-definition-of-done)
+12. [Bootstrap — config templates](#12-bootstrap--config-templates)
+13. [Cloak SDK — pattern yang sudah dikonfirmasi dari docs](#13-cloak-sdk--pattern-yang-sudah-dikonfirmasi-dari-docs)
+14. [Open questions — confirm sebelum hari 2](#14-open-questions--confirm-sebelum-hari-2)
+15. [Hackathon submission alignment — Cloak Track](#15-hackathon-submission-alignment--cloak-track)
 
 ---
 
@@ -150,9 +174,10 @@ export function createBountyPayment(
 ): Promise<Result<BountyPaymentResult, AppError>>;
 
 export interface CreateBountyPaymentInput {
-  amountLamports: bigint;          // SOL/SPL base units, never number
+  amountBaseUnits: bigint;         // SOL/SPL base units, never number
+  tokenMint?: string;              // base58. Default: NATIVE_SOL_MINT
   label: string;                   // ≤64 chars, sudah disanitasi frontend
-  memo?: string;                   // optional, ≤140 chars
+  memo?: string;                   // optional, ≤140 chars (encoded ke ticket)
 }
 
 export interface BountyContext {
@@ -163,7 +188,8 @@ export interface BountyContext {
 }
 
 export interface BountyPaymentResult {
-  ticket: ClaimTicket;             // opaque string + metadata
+  ticket: ClaimTicket;             // opaque string + metadata, share ke researcher
+  viewingKey: string;              // share ke auditor off-chain — read-only scope
   signature: string;               // tx signature untuk Solscan link
   feeLamports: bigint;
 }
@@ -506,6 +532,356 @@ Package dianggap ready untuk Phase 4 frontend integration ketika **semua** centa
 - [ ] README.md dengan: install, quickstart, contoh per fungsi, daftar `AppError`
 - [ ] Tidak ada `any`, tidak ada `@ts-ignore`, tidak ada `console.*` di `src/`
 - [ ] Tidak ada komentar di `src/` (kecuali license header / `biome-ignore` dengan alasan)
+
+---
+
+## 12. Bootstrap — config templates
+
+Section ini supaya kamu bisa langsung copy-paste, bukan hunting setup config.
+
+### 12.1 First commands (urutan exact)
+
+```bash
+# Dari repo root
+cd backend
+pnpm init                                        # buat package.json
+pnpm add @cloak.dev/sdk @solana/web3.js zod
+pnpm add -D typescript @types/node vitest @biomejs/biome tsx
+npx @cloak.dev/claude-skills                     # install Cloak slash commands
+
+# Lalu daftarkan workspace di root
+cd ..
+# Edit pnpm-workspace.yaml (lihat §8.1)
+pnpm install
+```
+
+### 12.2 `backend/package.json` (template lengkap)
+
+```json
+{
+  "name": "@tirai/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@cloak.dev/sdk": "^latest",
+    "@solana/web3.js": "^1.98.0",
+    "pdf-lib": "^1.17.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}
+```
+
+### 12.3 `backend/tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}
+```
+
+### 12.4 `backend/biome.json`
+
+```json
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+  "files": {
+    "ignoreUnknown": true,
+    "includes": ["**", "!node_modules", "!dist"]
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
+  "linter": {
+    "enabled": true,
+    "rules": { "recommended": true }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}
+```
+
+### 12.5 `pnpm-workspace.yaml` (di repo root)
+
+```yaml
+packages:
+  - frontend
+  - backend
+```
+
+Setelah file ini ada, jalankan `pnpm install` dari root supaya workspace ter-link.
+
+### 12.6 `backend/src/index.ts` (skeleton — hari 1 commit)
+
+```ts
+export {
+  createBountyPayment,
+  type CreateBountyPaymentInput,
+  type BountyContext,
+  type BountyPaymentResult,
+} from "./bounty";
+
+export {
+  inspectClaimTicket,
+  type InspectContext,
+  type ClaimTicketPreview,
+  claimBounty,
+  type ClaimBountyInput,
+  type ClaimBountyResult,
+  type ClaimContext,
+  type ClaimWalletMode,
+} from "./claim";
+
+export {
+  scanAuditHistory,
+  type ScanAuditInput,
+  type AuditContext,
+  type AuditHistory,
+  type AuditEntry,
+  type AuditSummary,
+  exportAuditReport,
+} from "./audit";
+
+export type {
+  Cluster,
+  ClaimTicket,
+  Result,
+  Signer,
+  ProgressStep,
+  ProgressEmitter,
+} from "./types/api";
+
+export type { AppError } from "./types/errors";
+```
+
+Hari 1 boleh stub semua fungsi return `{ ok: false, error: { kind: "UNKNOWN", message: "not implemented" } }` — yang penting **shape kontrak terkunci**. Frontend bisa langsung wire adapter signature dengan ini.
+
+---
+
+## 13. Cloak SDK — pattern yang sudah dikonfirmasi dari docs
+
+### 13.1 Konsep yang diverify dari `docs.cloak.ag`
+
+| Konsep | Apa | Dipakai untuk |
+|---|---|---|
+| **UTXO** | Output deposit (commitment di Merkle tree). Bawa `{ amount, owner, mint }`. | Yang di-encode jadi ClaimTicket di kita |
+| **UTXO keypair** (`generateUtxoKeypair()`) | Owner key dari UTXO. Yang punya keypair = yang bisa spend UTXO. | Bagian rahasia dari ClaimTicket — researcher butuh ini untuk withdraw |
+| **Nullifier** (`computeUtxoNullifier(utxo)`) | Hash deterministic per UTXO. Begitu masuk on-chain = UTXO consumed. | Cek `isClaimable` di `inspectClaimTicket` |
+| **Viewing key** | Read-only key ter-scope ke account/aggregator. Cloak menyebut "viewing keys and compliance". | Di-share project ke auditor — auditor pakai untuk `scanTx` |
+| **Merkle tree** (32 height) | Storage on-chain semua commitments. | `getMerkleProof(connection, leafIndex)` saat withdraw |
+
+### 13.2 Mapping fungsi Tirai → call Cloak SDK
+
+```ts
+// 13.2.a createBountyPayment — internal flow
+import {
+  CLOAK_PROGRAM_ID,
+  NATIVE_SOL_MINT,
+  createUtxo,
+  createZeroUtxo,
+  generateUtxoKeypair,
+  transact,
+} from "@cloak.dev/sdk";
+
+const owner = await generateUtxoKeypair();             // → bagian rahasia ticket
+const mint = input.tokenMint ?? NATIVE_SOL_MINT;
+const depositOutput = await createUtxo(input.amountBaseUnits, owner, mint);
+
+ctx.onProgress?.("validate");
+const result = await transact(
+  {
+    inputUtxos: [await createZeroUtxo(mint)],
+    outputUtxos: [depositOutput],
+    externalAmount: input.amountBaseUnits,
+    depositor: ctx.payer.publicKey,
+  },
+  {
+    connection: ctx.connection,
+    programId: CLOAK_PROGRAM_ID,
+    depositorKeypair: undefined,                       // wallet adapter signs, not Keypair
+    walletPublicKey: ctx.payer.publicKey,
+  },
+);
+ctx.onProgress?.("done");
+
+// Encode ticket = serialize { utxo, ownerSecret, label, memo, mint, cluster }
+const ticket = encodeTicket({ utxo: depositOutput, owner, ... });
+// Viewing key derivation: TBD — lihat §14 open questions
+```
+
+```ts
+// 13.2.b claimBounty — internal flow
+import { fullWithdraw } from "@cloak.dev/sdk";
+
+const decoded = decodeTicket(input.ticket);
+const recipient = mode.kind === "fresh"
+  ? Keypair.generate()
+  : { publicKey: mode.signer.publicKey };
+
+await fullWithdraw(
+  [decoded.utxo],
+  recipient.publicKey,
+  { connection: ctx.connection, programId: CLOAK_PROGRAM_ID },
+);
+```
+
+### 13.3 Wire format `ClaimTicket`
+
+Format wajib supaya frontend bisa parse:
+
+```ts
+interface ClaimTicketEnvelope {
+  v: 1;                       // version
+  c: Cluster;                 // "mainnet" | "devnet" | "localnet"
+  m: string;                  // mint base58
+  a: string;                  // amount as decimal string (bigint serialized)
+  l: string;                  // label
+  n?: string;                 // memo
+  u: {                        // serialized UTXO
+    commitment: string;       // hex
+    leafIndex: number;
+    /* ...field lain dari UTXO yang dibutuhkan untuk withdraw */
+  };
+  k: string;                  // owner secret key, base64
+  t: number;                  // createdAt ms
+}
+
+// Pipeline: object → JSON → base64url → string
+// Hasil string disimpan di ClaimTicket.raw, dibungkus QR + copy button di frontend
+```
+
+**Jangan** pakai `JSON.stringify` di prod tanpa handle bigint — pakai serializer kustom (replace `bigint` jadi string sebelum stringify).
+
+### 13.4 Wire format `viewingKey`
+
+`viewingKey: string` di public API. Format internal sama: base64url dari serialized struct yang Cloak SDK terima di `scanTx(viewingKey)`. Kalau Cloak SDK ekspos string langsung → langsung passthrough.
+
+### 13.5 Status sourcing untuk `AuditEntry`
+
+```ts
+status:
+  | "deposited"   // cloak.scanTx return entry, tapi nullifier belum on-chain
+  | "claimed"     // nullifier sudah on-chain (consumed)
+  | "expired"     // cloak return ticket expiry past `now()` — cek field expiry kalau SDK punya
+```
+
+Sumber: hasil `cloak.scanTx(viewingKey)` + cross-check `computeUtxoNullifier(utxo)` ke `getMerkleProof` / nullifier program account. Detailnya tergantung struct return scanTx — confirm di hari 1.
+
+### 13.6 Mapping `ProgressStep`
+
+Cloak SDK **tidak** ekspos progress callback native (per docs). Jadi emit manual:
+
+| Step | Kapan emit |
+|---|---|
+| `"validate"` | Sebelum panggil `createUtxo` / `decodeTicket` |
+| `"generate-proof"` | Sebelum panggil `transact()` / `fullWithdraw()` (proof gen ~3s) |
+| `"submit"` | Antara proof done dan `connection.sendTransaction` |
+| `"confirm"` | Setelah send, sebelum `connection.confirmTransaction` |
+| `"done"` | Setelah `confirmed` returned |
+
+Karena `transact()` adalah satu blocking call yang melakukan proof + submit + confirm internal, emit `"generate-proof"` sebelum dan `"done"` sesudah cukup untuk MVP. Kalau Cloak SDK eventually expose internal events, tambah lagi.
+
+---
+
+## 14. Open questions — confirm sebelum hari 2
+
+Ini gap yang docs tidak jawab eksplisit. Tanya di Telegram `@matheusmxd` atau di GitHub issues `cloak-ag/`. **Jangan implement sebelum ini di-resolve** — risiko rework besar.
+
+| # | Pertanyaan | Kenapa kritis |
+|---|---|---|
+| 1 | Dari mana datangnya `viewingKey` setelah `transact()` deposit? Apakah hasil `transact()` punya field viewing key, atau project harus generate sendiri via separate call? | Tanpa ini alur `/audit` tidak bisa dimulai sama sekali |
+| 2 | Apakah satu viewing key = satu UTXO (per-deposit), atau satu viewing key = aggregator account yang lihat semua deposit project? | Mempengaruhi UX project: 1 ticket per audit vs 1 audit untuk semua bounties |
+| 3 | Format wire `viewingKey` yang `scanTx` consume — hex string, base58, base64, atau opaque object? | Wire format ticket auditor |
+| 4 | Apakah `transact()` sudah include `confirmTransaction` di dalam, atau caller harus poll commitment sendiri? | Mempengaruhi mapping ProgressStep dan return timing |
+| 5 | `scanTx(viewingKey)` return shape persisnya seperti apa? Apakah ada field `destination` yang harus kita filter manual sebelum bocor ke `AuditEntry`? | Privacy boundary 3 — jangan sampai filter lupa |
+| 6 | `fullWithdraw` menerima recipient `PublicKey`, tapi siapa yang sign withdraw tx? UTXO keypair, atau wallet adapter caller? | Mempengaruhi `ClaimContext` shape — perlu signer atau cukup keypair? |
+| 7 | Apakah `complianceRpt` adalah method terpisah atau bagian dari `scanTx`? Apa output formatnya (sudah PDF-ready atau struct mentah)? | Apakah `exportAuditReport` cukup format `AuditHistory`, atau panggil `complianceRpt` lagi di sini |
+| 8 | Cloak Shield Pool `programId` di mainnet sama dengan `zh1eLd6rSphLejbFfJEneUwzHRfMKxgzrgkfwA6qRkW` (dari README kita) atau pakai `CLOAK_PROGRAM_ID` constant dari SDK? | Kalau beda, frontend `src/config/cloak.ts` perlu update |
+| 9 | Apakah ada cluster devnet resmi Cloak (program deployed di devnet?), atau cuma Surfpool fork mainnet? | Mempengaruhi `.env.example` frontend dan strategi testing |
+| 10 | SPL token support: apakah `transact` dengan `mint != NATIVE_SOL_MINT` butuh ATA pre-create, dan apakah recipient juga butuh ATA pre-existing? | Jika ya, `claimBounty` harus include `createAssociatedTokenAccountInstruction` saat fresh wallet mode |
+
+**Update flow:** begitu salah satu dijawab, update bagian relevan di doc ini dan tag Bima.
+
+---
+
+## 15. Hackathon submission alignment — Cloak Track
+
+**Track:** "Build real-world payment solutions with privacy — Cloak Track" (Frontier Hackathon).
+**Prize pool:** 5,010 USDC (1st: 2,000 · 2nd: 1,500 · 3rd: 750 · 4th: 500 · 5th: 260).
+**Deadline:** 2026-05-14 (winners diumumkan tanggal ini, jadi submit sebelum).
+**Submissions per 2026-05-04:** 12 entries — kompetisi sudah ramai, demo polish penting.
+
+### 15.1 Apa yang juri Cloak akan cari (inferred dari track theme)
+
+- **Real-world use case** — bukan toy demo. Bounty payouts whitehat = legitimate compliance + privacy story.
+- **Privacy correctness** — semua 3 boundary (rules.md §0) terdemo on-chain. **Side-by-side Solscan comparison di video** = strong proof point.
+- **SDK depth** — pakai Cloak SDK secara non-trivial (bukan cuma deposit). Tirai pakai `transact` + `fullWithdraw` + `scanTx` + viewing key compliance — tick semua.
+- **UX** — privacy bukan beban. Save-key dialog, fresh-wallet default, auditor read-only — semua terlihat di demo.
+- **Mainnet** — banyak hackathon submit di devnet only. Demo mainnet final = credibility besar.
+
+### 15.2 Deliverable kamu yang langsung impact submission
+
+| Deliverable | Mempengaruhi judging dimensi |
+|---|---|
+| Mainnet smoke test `pay → claim → audit` (hari 6) | Real-world demo, mainnet credibility |
+| `AuditEntry` tanpa destination wallet | Privacy correctness, boundary 3 |
+| `claimBounty` dua mode (fresh + existing) | UX choice, boundary 2 |
+| Error messages technical-tapi-tidak-bocor | Production polish |
+| README quickstart + contoh per fungsi | Reusability — juri suka project yang bisa di-fork |
+
+### 15.3 Yang harus kamu siapkan untuk demo video Neysa
+
+Neysa (brand & video owner) butuh dari kamu hari 7-8:
+- Screencast / log dari satu deposit mainnet (amount kecil, ≤0.01 SOL) — sebagai material side-by-side Solscan
+- Tx signature + viewing key + ticket dari demo deposit, supaya video bisa scrub real data tanpa risiko privacy
+- One-liner technical claim untuk voiceover: misal "Tirai uses Groth16 ZK proofs over Cloak's 32-height Poseidon Merkle tree to sever the on-chain link between project treasury and researcher payout."
+
+Coordinasi: post di repo issue dengan label `demo-video` saat material ready.
+
+### 15.4 Submission checklist
+
+Selain DoD §11, untuk submission portal pastikan:
+
+- [ ] GitHub repo public dengan license MIT/Apache
+- [ ] README utama (root, bukan ini) update dengan demo URL Vercel
+- [ ] Tag release `v0.1.0` di GitHub
+- [ ] Demo video <5 menit, hosted di YouTube unlisted (link di submission form)
+- [ ] Mainnet tx hash sebagai bukti — minimal 1 deposit + 1 withdraw + 1 audit scan
+- [ ] Section "How to verify privacy" di README — instruksi reviewer untuk reproduce side-by-side Solscan check
+- [ ] Submit di Superteam Earn portal sebelum 2026-05-14 (UTC midnight)
 
 ---
 
