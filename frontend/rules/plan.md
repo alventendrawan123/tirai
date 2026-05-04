@@ -457,3 +457,4 @@ A phase is **complete** only when every box below is checked.
 ---
 
 *This plan is a working document — update it when scope shifts. Update commits use `docs(rules): …`.*
+
