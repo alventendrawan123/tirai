@@ -1,10 +1,24 @@
 import Link from "next/link";
-import { buttonVariants, Container, SectionEyebrow } from "@/components/ui";
+import {
+  buttonVariants,
+  Container,
+  DotGrid,
+  SectionEyebrow,
+} from "@/components/ui";
 
 export function LandingHero() {
   return (
-    <section className="border-subtle border-b">
-      <Container size="xl" className="py-24 md:py-32">
+    <section className="border-subtle relative overflow-hidden border-b">
+      <div className="pointer-events-none absolute inset-0 opacity-50">
+        <DotGrid
+          dotSize={2}
+          gap={28}
+          proximity={140}
+          shockRadius={220}
+          shockStrength={3}
+        />
+      </div>
+      <Container size="xl" className="relative py-24 md:py-32">
         <SectionEyebrow>
           Tirai · Cloak Hackathon · Frontier Track
         </SectionEyebrow>

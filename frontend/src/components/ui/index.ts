@@ -15,6 +15,7 @@ export {
   CopyToClipboard,
   type CopyToClipboardProps,
 } from "./copy-to-clipboard";
+export { DotGrid, type DotGridProps } from "./dot-grid";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { Field, FieldError, FieldHint, FieldLabel } from "./field";
 export { Input, type InputProps } from "./input";
