@@ -386,8 +386,128 @@ frontend/
 - A feature folder is **self-contained**. Cross-feature imports MUST go through the feature's `index.ts`.
 - `components/` is for **truly reusable** primitives. If a component is used by exactly one feature, it lives in that feature.
 - Never reach into another feature's internals (`features/swap/domain/...` from `features/staking` is forbidden).
-- Files: `kebab-case.ts`, React components: `PascalCase.tsx`.
-- One component per file. Filename matches the exported component.
+- All files use `kebab-case` (`swap-form.tsx`, `format-token-amount.ts`). React component identifiers exported from those files remain `PascalCase`.
+- One primary component per file. Filename matches the kebab-case form of the exported component (`SwapForm` → `swap-form.tsx`).
+
+### Pages Architecture (route ↔ component split)
+
+The Next.js `app/` directory is **for routing only**. Page UI lives under `src/components/pages/<group>/<page>/`. Every `app/.../page.tsx` MUST be a thin **5-line** binding that imports a single `XxxPage` component from `components/pages` and renders it. **No JSX, no hooks, no logic** in `app/` route files.
+
+Why:
+
+- **Separation of concerns:** routing (URL → file) is decoupled from rendering (UI composition).
+- **Discoverability:** every page UI lives at a predictable path under `components/pages/`, mirroring the route structure.
+- **Testability:** page components are plain React components — they can be rendered in tests, Storybook, or kitchen-sink routes without invoking the Next.js router.
+- **Reusability:** a page component can be embedded in another context (preview, embed, screenshot) without coupling to the route system.
+
+#### Required structure
+
+Mirror the App Router route groups under `components/pages/`. Use the same group names (`(app)`, `(marketing)`, …) so the two trees stay in lock-step.
+
+```
+src/
+├── app/
+│   ├── layout.tsx
+│   ├── globals.css
+│   └── (app)/                                  # route group
+│       ├── pay/page.tsx                        # 5-line route binding
+│       ├── claim/page.tsx                      # 5-line route binding
+│       └── audit/page.tsx                      # 5-line route binding
+│
+└── components/
+    └── pages/
+        └── (app)/                              # mirrors app/(app)/
+            ├── pay/
+            │   ├── components/                 # page-scoped sub-components
+            │   ├── types/                      # page-scoped types (optional)
+            │   ├── pay-page.tsx                # the page component
+            │   └── index.ts                    # `export { PayPage } from "./pay-page"`
+            ├── claim/
+            │   ├── components/
+            │   ├── claim-page.tsx
+            │   └── index.ts
+            ├── audit/
+            │   ├── components/
+            │   ├── audit-page.tsx
+            │   └── index.ts
+            └── index.ts                        # group barrel
+```
+
+#### Naming rules
+
+- Page component file: `<page>-page.tsx` (kebab-case).
+- Page component name: `PascalCase` ending in `Page` — `PayPage`, `ClaimPage`, `AuditPage`.
+- Per-page barrel: `index.ts` re-exports only the named page component (`export { PayPage } from "./pay-page";`). **No default exports.**
+- Group barrel: `components/pages/(app)/index.ts` re-exports every page in the group for convenient cross-import inside other components (never inside `app/`).
+- Page-scoped sub-components live in `<page>/components/<sub>.tsx`. They MUST NOT be imported from outside the page folder.
+- Page-scoped types live in `<page>/types/*.ts` per `rules.md` §8.
+
+#### The 5-line rule (6 with a typed prop)
+
+Every file in `app/.../page.tsx` MUST follow exactly this shape (≤ 5 lines, blank line included):
+
+```tsx
+import { PayPage } from "@/components/pages/(app)/pay";
+
+export default function Page() {
+  return <PayPage />;
+}
+```
+
+When the route forwards `params` or `searchParams`, **one extra import is permitted** for the shared `PageProps<T>` helper from `@/types`, bringing the file to **≤ 6 lines**. Anything beyond that means logic is leaking into the route file — push it into the page component instead.
+
+```tsx
+import { PayPage } from "@/components/pages/(app)/pay";
+import type { PageProps } from "@/types";
+
+export default async function Page({ searchParams }: PageProps) {
+  return <PayPage searchParams={await searchParams} />;
+}
+```
+
+What is **forbidden** in `app/.../page.tsx`:
+
+- ❌ JSX beyond `<XxxPage />` (no wrappers, no `<Suspense>`, no providers — those go in `layout.tsx` or in the page component itself).
+- ❌ Any hook (`useState`, `useEffect`, `useSearchParams`, …).
+- ❌ Data fetching (`fetch`, `await`, server-only imports). Lift it into the page component or a co-located server util.
+- ❌ Renaming the default export (`export default function PayRoute` is fine, but it MUST do nothing other than render the page component).
+- ❌ Multiple imports. Exactly one import: the page component. Route-level metadata (`metadata`, `generateMetadata`, `revalidate`, `dynamic`, …) is the only allowed addition, and goes **above** the import block.
+
+What **is** allowed alongside the 5-line binding (still inside `app/.../page.tsx`):
+
+- ✅ `export const metadata: Metadata = { … };`
+- ✅ `export const revalidate = 60;`
+- ✅ `export const dynamic = "force-static";`
+
+These route-level constants do not count against the 5-line rule, but the rendered output MUST remain `<XxxPage />`.
+
+#### Passing route params
+
+If the route depends on `params` or `searchParams`, forward them — do **not** parse them in `page.tsx`:
+
+```tsx
+import { ClaimPage } from "@/components/pages/(app)/claim";
+
+export default async function Page({ searchParams }: { searchParams: Promise<{ ticket?: string }> }) {
+  return <ClaimPage searchParams={await searchParams} />;
+}
+```
+
+Parsing, validation (`zod`), and any branching live inside `ClaimPage` (or a hook it calls). The route file remains a thin pass-through.
+
+#### Co-location rules
+
+- A sub-component used **only** by one page → `components/pages/<group>/<page>/components/`.
+- A sub-component used by **two or more pages** in the same group → `components/pages/<group>/_shared/`.
+- A sub-component used by pages **across groups** → promote to `components/ui/` (truly reusable) or to a feature folder.
+- Domain logic (use-cases, adapters, stores) **never** lives under `components/pages/`. It belongs in `features/<feat>/` per §7.
+
+#### Imports
+
+- `app/.../page.tsx` imports from `@/components/pages/<group>/<page>` (per-page barrel) — never deep imports.
+- Page components import their sub-components via relative paths (`./components/pay-form`).
+- Cross-page imports inside the same group go through the group barrel (`@/components/pages/(app)`).
+- Cross-group imports are forbidden — promote shared UI to `components/ui/` instead.
 
 ---
 
@@ -450,8 +570,7 @@ export function SwapForm({ onSubmit }: SwapFormProps) { /* ... */ }
 
 | Entity                  | Convention             | Example                            |
 |-------------------------|------------------------|------------------------------------|
-| File (non-component)    | kebab-case             | `format-token-amount.ts`           |
-| Component file          | PascalCase             | `SwapForm.tsx`                     |
+| File (any)              | kebab-case             | `swap-form.tsx`, `format-token-amount.ts` |
 | React component         | PascalCase             | `SwapForm`                         |
 | Hook                    | `useCamelCase`         | `useTokenBalance`                  |
 | Boolean                 | `is/has/can/should`    | `isConnected`, `hasAllowance`      |
