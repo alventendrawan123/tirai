@@ -1,0 +1,33 @@
+{
+  "name": "@tirai/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:install": "tsx scripts/test-cloak-install.ts"
+  },
+  "dependencies": {
+    "@cloak.dev/sdk-devnet": "latest",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.0",
+    "pdf-lib": "^1.17.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}
