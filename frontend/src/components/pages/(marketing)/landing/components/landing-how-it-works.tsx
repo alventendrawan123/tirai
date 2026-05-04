@@ -1,4 +1,9 @@
-import { Container, SectionEyebrow, SectionHeading } from "@/components/ui";
+import {
+  AnimatedContent,
+  Container,
+  SectionEyebrow,
+  SectionHeading,
+} from "@/components/ui";
 
 interface Step {
   index: string;
@@ -28,18 +33,24 @@ export function LandingHowItWorks() {
   return (
     <section className="border-subtle border-b">
       <Container size="xl" className="py-20 md:py-24">
-        <SectionEyebrow>How it works</SectionEyebrow>
-        <SectionHeading>
-          One deposit. One withdrawal. No traceable link.
-        </SectionHeading>
+        <AnimatedContent>
+          <SectionEyebrow>How it works</SectionEyebrow>
+          <SectionHeading>
+            One deposit. One withdrawal. No traceable link.
+          </SectionHeading>
+        </AnimatedContent>
         <ol className="border-subtle bg-border-subtle mt-12 grid gap-px border md:grid-cols-3">
-          {STEPS.map((step) => (
-            <li key={step.index} className="bg-main p-8">
-              <p className="text-muted font-mono text-xs">{step.index}</p>
-              <h3 className="mt-4 text-lg font-medium">{step.title}</h3>
-              <p className="text-secondary mt-3 text-sm leading-relaxed">
-                {step.body}
-              </p>
+          {STEPS.map((step, i) => (
+            <li key={step.index} className="bg-main">
+              <AnimatedContent delay={0.05 * i} className="h-full">
+                <div className="p-8">
+                  <p className="text-muted font-mono text-xs">{step.index}</p>
+                  <h3 className="mt-4 text-lg font-medium">{step.title}</h3>
+                  <p className="text-secondary mt-3 text-sm leading-relaxed">
+                    {step.body}
+                  </p>
+                </div>
+              </AnimatedContent>
             </li>
           ))}
         </ol>

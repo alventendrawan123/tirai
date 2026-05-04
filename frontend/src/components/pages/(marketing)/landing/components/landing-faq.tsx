@@ -1,4 +1,9 @@
-import { Container, SectionEyebrow, SectionHeading } from "@/components/ui";
+import {
+  AnimatedContent,
+  Container,
+  SectionEyebrow,
+  SectionHeading,
+} from "@/components/ui";
 
 interface Question {
   q: string;
@@ -28,16 +33,22 @@ export function LandingFaq() {
   return (
     <section className="border-subtle border-b">
       <Container size="md" className="py-20 md:py-24">
-        <SectionEyebrow>FAQ</SectionEyebrow>
-        <SectionHeading>Common questions.</SectionHeading>
+        <AnimatedContent>
+          <SectionEyebrow>FAQ</SectionEyebrow>
+          <SectionHeading>Common questions.</SectionHeading>
+        </AnimatedContent>
         <dl className="divide-border-subtle border-subtle mt-12 divide-y border-y">
-          {QUESTIONS.map((item) => (
-            <div key={item.q} className="grid gap-2 py-6 md:grid-cols-3">
-              <dt className="text-base font-medium md:col-span-1">{item.q}</dt>
-              <dd className="text-secondary text-sm leading-relaxed md:col-span-2">
-                {item.a}
-              </dd>
-            </div>
+          {QUESTIONS.map((item, i) => (
+            <AnimatedContent key={item.q} delay={0.04 * i}>
+              <div className="grid gap-2 py-6 md:grid-cols-3">
+                <dt className="text-base font-medium md:col-span-1">
+                  {item.q}
+                </dt>
+                <dd className="text-secondary text-sm leading-relaxed md:col-span-2">
+                  {item.a}
+                </dd>
+              </div>
+            </AnimatedContent>
           ))}
         </dl>
       </Container>

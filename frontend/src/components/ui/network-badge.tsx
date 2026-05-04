@@ -1,10 +1,14 @@
+"use client";
+
+import type { Cluster } from "@/config";
 import { cn } from "@/lib/utils";
+import { useCluster } from "@/providers";
 import { Badge } from "./badge";
 
-export type Cluster = "mainnet" | "devnet" | "localnet";
+export type { Cluster };
 
 export interface NetworkBadgeProps {
-  cluster: Cluster;
+  cluster?: Cluster;
   className?: string;
 }
 
@@ -15,16 +19,18 @@ const LABEL: Record<Cluster, string> = {
 };
 
 export function NetworkBadge({ cluster, className }: NetworkBadgeProps) {
+  const ctx = useCluster();
+  const active = cluster ?? ctx.cluster;
   return (
     <Badge
-      variant={cluster === "mainnet" ? "solid" : "outline"}
+      variant={active === "mainnet" ? "solid" : "outline"}
       className={cn(className)}
     >
       <span
         aria-hidden="true"
         className="inline-block h-1.5 w-1.5 rounded-full bg-current"
       />
-      {LABEL[cluster]}
+      {LABEL[active]}
     </Badge>
   );
 }

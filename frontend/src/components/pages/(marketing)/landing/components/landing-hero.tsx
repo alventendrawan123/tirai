@@ -1,9 +1,10 @@
-import Link from "next/link";
 import {
-  buttonVariants,
   Container,
   DotGrid,
+  RoleCtaButton,
   SectionEyebrow,
+  ShinyText,
+  SplitText,
 } from "@/components/ui";
 
 export function LandingHero() {
@@ -22,27 +23,46 @@ export function LandingHero() {
         <SectionEyebrow>
           Tirai · Cloak Hackathon · Frontier Track
         </SectionEyebrow>
-        <h1 className="mt-6 max-w-3xl text-4xl leading-[1.1] font-medium tracking-tight md:text-6xl">
-          Privacy-first bounty payouts for Solana whitehats.
-        </h1>
+        <SplitText
+          tag="h1"
+          text="Privacy-first bounty payouts for Solana whitehats."
+          className="text-primary mt-6 max-w-3xl text-4xl leading-[1.1] font-medium tracking-tight md:text-6xl"
+          delay={28}
+          duration={1}
+          textAlign="left"
+        />
         <p className="text-secondary mt-6 max-w-2xl text-lg leading-relaxed">
           Tirai severs the on-chain link between a researcher&apos;s identity
-          and the payment they receive — using zero-knowledge proofs over the
-          Cloak Shield Pool. Observers see nothing. Auditors see what they need.
+          and the payment they receive — using zero-knowledge proofs over the{" "}
+          <ShinyText
+            text="Cloak Shield Pool"
+            className="font-medium"
+            speed={4}
+          />
+          . Observers see nothing. Auditors see what they need.
         </p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <Link href="/pay" className={buttonVariants({ variant: "primary" })}>
-            Pay a bounty
-          </Link>
-          <Link
+        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <RoleCtaButton
+            href="/pay"
+            intent="pay"
+            label="Pay a bounty"
+            hint="Project treasury"
+            variant="primary"
+          />
+          <RoleCtaButton
             href="/claim"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Claim a bounty
-          </Link>
-          <Link href="/audit" className={buttonVariants({ variant: "ghost" })}>
-            Open audit dashboard
-          </Link>
+            intent="claim"
+            label="Claim a bounty"
+            hint="Researcher"
+            variant="outline"
+          />
+          <RoleCtaButton
+            href="/audit"
+            intent="audit"
+            label="Open audit dashboard"
+            hint="Compliance"
+            variant="ghost"
+          />
         </div>
       </Container>
     </section>

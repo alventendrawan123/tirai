@@ -1,4 +1,5 @@
 import {
+  AnimatedContent,
   Card,
   CardContent,
   CardDescription,
@@ -7,6 +8,7 @@ import {
   Container,
   SectionEyebrow,
   SectionHeading,
+  TiltedCard,
 } from "@/components/ui";
 
 interface Boundary {
@@ -37,23 +39,29 @@ export function LandingPrivacyBoundaries() {
   return (
     <section className="border-subtle border-b">
       <Container size="xl" className="py-20 md:py-24">
-        <SectionEyebrow>Privacy boundaries</SectionEyebrow>
-        <SectionHeading>
-          Three guarantees, enforced cryptographically.
-        </SectionHeading>
+        <AnimatedContent>
+          <SectionEyebrow>Privacy boundaries</SectionEyebrow>
+          <SectionHeading>
+            Three guarantees, enforced cryptographically.
+          </SectionHeading>
+        </AnimatedContent>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {BOUNDARIES.map((b) => (
-            <Card key={b.label}>
-              <CardHeader>
-                <p className="text-muted font-mono text-xs uppercase tracking-[0.18em]">
-                  {b.label}
-                </p>
-                <CardTitle>{b.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription>{b.body}</CardDescription>
-              </CardContent>
-            </Card>
+          {BOUNDARIES.map((b, i) => (
+            <AnimatedContent key={b.label} delay={0.08 * i}>
+              <TiltedCard className="h-full" rotateAmplitude={5}>
+                <Card className="h-full">
+                  <CardHeader>
+                    <p className="text-muted font-mono text-xs uppercase tracking-[0.18em]">
+                      {b.label}
+                    </p>
+                    <CardTitle>{b.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription>{b.body}</CardDescription>
+                  </CardContent>
+                </Card>
+              </TiltedCard>
+            </AnimatedContent>
           ))}
         </div>
       </Container>

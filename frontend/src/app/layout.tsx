@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NetworkMismatchDialog } from "@/components/ui";
+import { AppProviders } from "@/providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,10 +26,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="bg-main text-primary flex min-h-full flex-col">
-        {children}
+        <AppProviders>
+          {children}
+          <NetworkMismatchDialog />
+        </AppProviders>
       </body>
     </html>
   );
