@@ -1,4 +1,23 @@
-import type { Connection } from "@solana/web3.js";
+import {
+  bytesToHex,
+  calculateFeeBigint,
+  createUtxo,
+  createZeroUtxo,
+  generateUtxoKeypair,
+  getNkFromUtxoPrivateKey,
+  NATIVE_SOL_MINT,
+  transact,
+} from "@cloak.dev/sdk-devnet";
+import {
+  type Connection,
+  PublicKey,
+  type Transaction,
+  type VersionedTransaction,
+} from "@solana/web3.js";
+import { getProgramId } from "../config/cloak-program";
+import { parseSdkError } from "../errors/parse-sdk-error";
+import { err, ok } from "../lib/result";
+import { encodeClaimTicket } from "../ticket/encode";
 import type {
   ClaimTicket,
   Cluster,
@@ -30,8 +49,80 @@ export interface BountyPaymentResult {
 }
 
 export async function createBountyPayment(
-  _input: CreateBountyPaymentInput,
-  _ctx: BountyContext,
+  input: CreateBountyPaymentInput,
+  ctx: BountyContext,
 ): Promise<Result<BountyPaymentResult, AppError>> {
-  return { ok: false, error: { kind: "UNKNOWN", message: "not implemented" } };
+  let mint: PublicKey;
+  if (input.tokenMint === undefined) {
+    mint = NATIVE_SOL_MINT;
+  } else {
+    try {
+      mint = new PublicKey(input.tokenMint);
+    } catch {
+      return err({
+        kind: "INVALID_INPUT",
+        field: "tokenMint",
+        message: "Not a valid base58 public key",
+      });
+    }
+  }
+
+  try {
+    ctx.onProgress?.("validate");
+
+    const owner = await generateUtxoKeypair();
+    const nk = getNkFromUtxoPrivateKey(owner.privateKey);
+    const outputUtxo = await createUtxo(input.amountBaseUnits, owner, mint);
+    const zeroUtxo = await createZeroUtxo(mint);
+
+    ctx.onProgress?.("generate-proof");
+
+    const result = await transact(
+      {
+        inputUtxos: [zeroUtxo],
+        outputUtxos: [outputUtxo],
+        externalAmount: input.amountBaseUnits,
+        depositor: ctx.payer.publicKey,
+      },
+      {
+        connection: ctx.connection,
+        programId: getProgramId(ctx.cluster),
+        signTransaction: <T extends Transaction | VersionedTransaction>(
+          tx: T,
+        ): Promise<T> => ctx.payer.signTransaction(tx),
+        depositorPublicKey: ctx.payer.publicKey,
+        walletPublicKey: ctx.payer.publicKey,
+        enforceViewingKeyRegistration: false,
+        chainNoteViewingKeyNk: nk,
+      },
+    );
+
+    ctx.onProgress?.("done");
+
+    const outputForTicket = result.outputUtxos[0];
+    if (!outputForTicket) {
+      return err({
+        kind: "UNKNOWN",
+        message: "transact did not return output UTXO",
+      });
+    }
+
+    const ticket = encodeClaimTicket({
+      utxo: outputForTicket,
+      amountBaseUnits: input.amountBaseUnits,
+      tokenMint: mint,
+      label: input.label,
+      cluster: ctx.cluster,
+      ...(input.memo !== undefined ? { memo: input.memo } : {}),
+    });
+
+    return ok({
+      ticket,
+      viewingKey: bytesToHex(nk),
+      signature: result.signature,
+      feeLamports: calculateFeeBigint(input.amountBaseUnits),
+    });
+  } catch (error) {
+    return err(parseSdkError(error));
+  }
 }

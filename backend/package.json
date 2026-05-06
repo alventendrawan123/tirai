@@ -14,7 +14,10 @@
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:install": "tsx scripts/test-cloak-install.ts"
+    "test:install": "tsx scripts/test-cloak-install.ts",
+    "setup:devnet": "tsx scripts/setup-devnet-wallet.ts",
+    "check:devnet": "tsx scripts/check-devnet-balance.ts",
+    "test:bounty": "tsx scripts/test-bounty-create.ts"
   },
   "dependencies": {
     "@cloak.dev/sdk-devnet": "latest",
