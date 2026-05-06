@@ -1,12 +1,12 @@
 # Update untuk Bima — backend `@tirai/api` ready (Hari 1–3)
 
-**Dari:** Alven · **Tanggal:** 2026-05-06 · **Status backend:** Hari 1–3 done, smoke test devnet PASS
+**Dari:** Alven · **Update terakhir:** 2026-05-06 · **Status backend:** Hari 1–4 done, dua smoke test devnet PASS
 
 ---
 
 ## TL;DR
 
-Types kontrak final, ticket encode/decode jalan, `createBountyPayment` sudah live di devnet (1 tx confirmed: [`46BExTo5...JgxATfZo`](https://solscan.io/tx/46BExTo5gRkyCMixFDFxExH6ipQCGiExYPLwgMrEWrxuFEWMuk4GdcyiArzsDbaWRLbmRju3NumGeynqJgxATfZo?cluster=devnet)). Kamu bisa **mulai Phase 4 sekarang** untuk halaman `/pay`. `/claim` dan `/audit` masih stubs — wire adapter signature-nya, tapi expect `{ ok: false, error: { kind: "UNKNOWN", message: "not implemented" } }` sampai Hari 4–5 done.
+Hari 4 ship: `inspectClaimTicket` + `claimBounty` (fresh + existing) full implementation. End-to-end devnet test PASS — deposit → inspect (claimable=true) → claim (fresh keypair, withdraw signature [`2LcuAyJ5...wX1KM1dd`](https://solscan.io/tx/2LcuAyJ5mFZ31EUAuU5kQR3BwTBXm1C8BRK4Yzj82iFFPuafhfrn8ZhK7pYEuEUqAHNvLrk7gVXtzyobwX1KM1dd?cluster=devnet)) → re-inspect (claimable=false). Nullifier check flips correctly. Sekarang `/pay` **dan** `/claim` udah real backed. Tinggal `/audit` (Hari 5) yang masih stub.
 
 ---
 
@@ -79,12 +79,12 @@ import type { AppError } from "@tirai/api/types";
 | Fungsi                | Status               | Behavior sekarang                                                              |
 | --------------------- | -------------------- | ------------------------------------------------------------------------------ |
 | `createBountyPayment` | ✅ **REAL** (Hari 3) | Hit Cloak devnet, return signature + ticket + viewing key                      |
-| `inspectClaimTicket`  | ⏳ Stub (Hari 4)     | Return `{ ok: false, error: { kind: "UNKNOWN", message: "not implemented" } }` |
-| `claimBounty`         | ⏳ Stub (Hari 4)     | Same                                                                           |
-| `scanAuditHistory`    | ⏳ Stub (Hari 5)     | Same                                                                           |
+| `inspectClaimTicket`  | ✅ **REAL** (Hari 4) | Decode + `verifyUtxos` nullifier check, returns `isClaimable` boolean          |
+| `claimBounty`         | ✅ **REAL** (Hari 4) | Decode + `fullWithdraw`, fresh + existing modes (relay submits, no signing)    |
+| `scanAuditHistory`    | ⏳ Stub (Hari 5)     | Return `{ ok: false, error: { kind: "UNKNOWN", message: "not implemented" } }` |
 | `exportAuditReport`   | ⏳ Stub (Hari 5)     | Same                                                                           |
 
-**Action untuk kamu:** wire semua 5 adapter di Phase 4 dengan signature persis di atas. Function yang stub tetap bisa dipanggil — return-nya `Result<T, AppError>` jadi UI sudah bisa render error state. Begitu Hari 4–5 ship, kamu cuma perlu `pnpm install` ulang, no code change di adapter layer.
+**Action untuk kamu:** wire `/pay` + `/claim` adapter sekarang dengan signature persis di atas. `/audit` masih stub — wire adapter signature-nya tapi expect `UNKNOWN` error sampai Hari 5 done.
 
 ---
 
@@ -152,6 +152,118 @@ Return shape (kalau `ok: true`):
 
 ---
 
+## 4b. Contoh wiring `/claim` (real, baru ship di Hari 4)
+
+`/claim` punya **dua mode**: `fresh` (researcher belum punya wallet — kita generate satu) dan `existing` (researcher pakai wallet adapter yang sudah connected). Public surface sama persis dengan stub sebelumnya — tinggal swap behavior di adapter.
+
+### Step 1: inspect (preview)
+
+```ts
+// frontend/src/features/claim/adapters/inspect.adapter.ts
+import { inspectClaimTicket } from "@tirai/api";
+import type { Connection } from "@solana/web3.js";
+
+export async function inspectTicketAdapter(
+  connection: Connection,
+  ticketRaw: string,
+) {
+  return inspectClaimTicket(ticketRaw, { connection, cluster: "devnet" });
+}
+```
+
+Return (`ok: true`):
+
+```ts
+{
+  amountLamports: 10_000_000n,  // bigint
+  tokenMint: null,              // null = native SOL, else base58
+  label: "claim-smoke",
+  isClaimable: true,            // false kalau nullifier sudah consumed
+}
+```
+
+**Pakai `isClaimable` untuk gate UI:** disable tombol "Claim" + tampilkan "Already claimed" kalau `false`. Function ini pure read-only — tidak ada signing.
+
+### Step 2: claim (fresh mode — researcher tanpa wallet)
+
+```ts
+// frontend/src/features/claim/adapters/claim.adapter.ts
+import { claimBounty } from "@tirai/api";
+import type { Connection } from "@solana/web3.js";
+
+export async function claimFreshAdapter(
+  connection: Connection,
+  ticketRaw: string,
+) {
+  return claimBounty(
+    { ticket: ticketRaw, mode: { kind: "fresh" } },
+    {
+      connection,
+      cluster: "devnet",
+      onProgress: (step) => console.log(step),
+    },
+  );
+}
+```
+
+Return (`ok: true`, `mode: "fresh"`):
+
+```ts
+{
+  mode: "fresh",
+  destination: "6VBr1nXVzVbEeBToDHf2PFDPEK15yHeCa7xDHWH1NFY4",  // base58
+  secretKey: Uint8Array(64),  // ⚠ HANYA expose ke SaveKeyDialog, jangan log/persist
+  signature: "2LcuAyJ5...",   // withdraw tx, link ke Solscan
+}
+```
+
+### Step 3: claim (existing mode — researcher punya wallet)
+
+```ts
+export async function claimExistingAdapter(
+  connection: Connection,
+  wallet: WalletContextState,
+  ticketRaw: string,
+) {
+  if (!wallet.publicKey || !wallet.signTransaction) {
+    throw new Error("Wallet not connected");
+  }
+
+  return claimBounty(
+    {
+      ticket: ticketRaw,
+      mode: {
+        kind: "existing",
+        signer: {
+          publicKey: wallet.publicKey,
+          signTransaction: wallet.signTransaction,
+        },
+      },
+    },
+    { connection, cluster: "devnet" },
+  );
+}
+```
+
+Return (`ok: true`, `mode: "existing"`):
+
+```ts
+{
+  mode: "existing",
+  destination: "<wallet-pubkey-base58>",
+  signature: "...",
+}
+```
+
+**Catatan penting `claimBounty`:**
+
+- **No signing happens.** Cloak relay submits the tx and pays gas — `signTransaction` di mode `existing` bukan dipanggil saat ini, kita cuma butuh `publicKey`. Tetap accept full Signer interface biar konsisten dengan `/pay`.
+- **`signer.publicKey` jadi destination address.** Researcher receives unshielded SOL/SPL di alamat itu.
+- **Fee dipotong dari amount.** User deposit 0.01 SOL → researcher receive ~0.00497 SOL (fixed 5M + variable 0.3% × amount).
+- **Fresh mode `secretKey` lifecycle:** lihat §5 — display sekali, copy ke password manager, zero-out. Jangan masuk localStorage / Sentry / state global.
+
+---
+
 ## 5. Privacy invariants — JANGAN DILANGGAR (rules.md §0, §12, §15)
 
 Saat wire adapter/UI, hindari:
@@ -174,11 +286,11 @@ Saat wire adapter/UI, hindari:
 
 ## 6. Devnet smoke evidence
 
-Reference tx kalau kamu mau verify wiring kamu work end-to-end:
+### Hari 3 — `createBountyPayment` (deposit only)
 
 ```
 Wallet pubkey:    77J6abSBQGcFrEKNL3n5waLeuskNq3n1pnvsJGsezj7U
-Tx signature:     46BExTo5gRkyCMixFDFxExH6ipQCGiExYPLwgMrEWrxuFEWMuk4GdcyiArzsDbaWRLbmRju3NumGeynqJgxATfZo
+Deposit tx:       46BExTo5gRkyCMixFDFxExH6ipQCGiExYPLwgMrEWrxuFEWMuk4GdcyiArzsDbaWRLbmRju3NumGeynqJgxATfZo
 Solscan:          https://solscan.io/tx/46BExTo5gRkyCMixFDFxExH6ipQCGiExYPLwgMrEWrxuFEWMuk4GdcyiArzsDbaWRLbmRju3NumGeynqJgxATfZo?cluster=devnet
 Cloak program:    Zc1kHfp4rajSMeASFDwFFgkHRjv7dFQuLheJoQus27h
 Amount:           0.01 SOL
@@ -187,7 +299,33 @@ Viewing key len:  64 hex chars (32 bytes nk)
 Ticket raw len:   447 chars base64url
 ```
 
-Wallet ini ada di `test-wallets/devnet.json` (gitignored). Kalau kamu mau coba `pnpm test:bounty` sendiri di backend, minta saya share secret key via channel aman (atau generate sendiri pakai `pnpm setup:devnet`).
+### Hari 4 — full e2e (`pay → inspect → claim → re-inspect`)
+
+```
+Deposit tx:       5eyfGuC9SPKbmbZqebvSiUZUo3vKpgQuboWsHGGamNogDGgAxc4jGyZDzzmHw1HuEiDiG784cp5QkQMRrdh3Ev52
+                  https://solscan.io/tx/5eyfGuC9SPKbmbZqebvSiUZUo3vKpgQuboWsHGGamNogDGgAxc4jGyZDzzmHw1HuEiDiG784cp5QkQMRrdh3Ev52?cluster=devnet
+
+Inspect (pre):    isClaimable: true   ← nullifier belum consumed
+
+Withdraw tx:      2LcuAyJ5mFZ31EUAuU5kQR3BwTBXm1C8BRK4Yzj82iFFPuafhfrn8ZhK7pYEuEUqAHNvLrk7gVXtzyobwX1KM1dd
+                  https://solscan.io/tx/2LcuAyJ5mFZ31EUAuU5kQR3BwTBXm1C8BRK4Yzj82iFFPuafhfrn8ZhK7pYEuEUqAHNvLrk7gVXtzyobwX1KM1dd?cluster=devnet
+Mode:             fresh
+Destination:      6VBr1nXVzVbEeBToDHf2PFDPEK15yHeCa7xDHWH1NFY4 (fresh keypair)
+Net received:     0.00497 SOL (= 0.01 deposit − 0.00503 fee)
+
+Inspect (post):   isClaimable: false  ← nullifier consumed, ticket dead
+```
+
+Wallet payer ada di `test-wallets/devnet.json` (gitignored). Kalau kamu mau run sendiri di backend, minta saya share secret key via channel aman (atau generate sendiri pakai `pnpm setup:devnet`).
+
+```bash
+# Pay only
+pnpm test:bounty
+
+# Full e2e (pay → inspect → claim → re-inspect)
+pnpm test:claim                    # default mode=fresh
+CLAIM_MODE=existing pnpm test:claim # withdraw to payer wallet itself
+```
 
 ---
 
@@ -243,13 +381,14 @@ Saat ini proof gen pakai pure-JS fallback (~30s per deposit). Saya akan run `pnp
 
 ## 8. Roadmap
 
-| Hari | Deliverable                                             | ETA      |
-| ---- | ------------------------------------------------------- | -------- |
-| 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) | 1–2 hari |
-| 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV)    | 1 hari   |
-| 6    | Mainnet rehearsal (deposit kecil, demo evidence)        | 1 hari   |
+| Hari | Deliverable                                                     | Status |
+| ---- | --------------------------------------------------------------- | ------ |
+| 1–3  | Types + ticket encode/decode + `createBountyPayment`            | ✅ done |
+| 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) + e2e   | ✅ done |
+| 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV)            | ⏳ next |
+| 6    | Mainnet rehearsal (deposit kecil, demo evidence)                | ⏳      |
 
-Kabari saya di chat begitu Phase 4 `/pay` kamu wired up — saya bantu debug kalau ada mismatch.
+Kabari saya di chat begitu Phase 4 `/pay` + `/claim` kamu wired up — saya bantu debug kalau ada mismatch.
 
 ---
 
@@ -273,7 +412,7 @@ Reply di chat atau create issue di repo untuk async resolve.
 # Dari root
 pnpm install
 pnpm -F @tirai/api typecheck     # 0 errors expected
-pnpm -F @tirai/api test          # 11/11 tests pass
+pnpm -F @tirai/api test          # 15/15 tests pass (8 ticket + 3 bounty + 4 claim)
 pnpm -F @tirai/api lint          # 0 errors
 ```
 

@@ -17,7 +17,8 @@
     "test:install": "tsx scripts/test-cloak-install.ts",
     "setup:devnet": "tsx scripts/setup-devnet-wallet.ts",
     "check:devnet": "tsx scripts/check-devnet-balance.ts",
-    "test:bounty": "tsx scripts/test-bounty-create.ts"
+    "test:bounty": "tsx scripts/test-bounty-create.ts",
+    "test:claim": "tsx scripts/test-claim.ts"
   },
   "dependencies": {
     "@cloak.dev/sdk-devnet": "latest",
