@@ -1,14 +1,14 @@
 import {
   CLOAK_PROGRAM_ID,
-  NATIVE_SOL_MINT,
-  DEVNET_MOCK_USDC_MINT,
-  generateUtxoKeypair,
-  getNkFromUtxoPrivateKey,
   calculateFeeBigint,
-  getDistributableAmount,
-  isWithdrawAmountSufficient,
+  DEVNET_MOCK_USDC_MINT,
   FIXED_FEE_LAMPORTS,
+  generateUtxoKeypair,
+  getDistributableAmount,
+  getNkFromUtxoPrivateKey,
+  isWithdrawAmountSufficient,
   MIN_DEPOSIT_LAMPORTS,
+  NATIVE_SOL_MINT,
 } from "@cloak.dev/sdk-devnet";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
@@ -39,9 +39,9 @@ async function main() {
   const pkHex = utxoKp.privateKey.toString(16).padStart(64, "0");
   const pubkHex = utxoKp.publicKey.toString(16).padStart(64, "0");
   console.log("UTXO private key (bigint, 252-bit field element)");
-  console.log("  hex:              ", pkHex.slice(0, 16) + "...");
+  console.log("  hex:              ", `${pkHex.slice(0, 16)}...`);
   console.log("UTXO public key    (Poseidon(privateKey, 0))");
-  console.log("  hex:              ", pubkHex.slice(0, 16) + "...");
+  console.log("  hex:              ", `${pubkHex.slice(0, 16)}...`);
   console.log();
 
   // ========================================
@@ -51,7 +51,10 @@ async function main() {
   console.log("👁️  VIEWING KEY DERIVATION");
   const nk = getNkFromUtxoPrivateKey(utxoKp.privateKey);
   console.log("Viewing key (nk):   ", nk.length, "bytes");
-  console.log("nk (hex):           ", Buffer.from(nk).toString("hex").slice(0, 16) + "...");
+  console.log(
+    "nk (hex):           ",
+    `${Buffer.from(nk).toString("hex").slice(0, 16)}...`,
+  );
   console.log();
 
   // ========================================
@@ -66,9 +69,15 @@ async function main() {
   const net = BigInt(getDistributableAmount(Number(bountyAmount)));
   const sufficient = isWithdrawAmountSufficient(bountyAmount);
 
-  console.log(`Gross amount:        ${bountyAmount} lamports (${Number(bountyAmount) / LAMPORTS_PER_SOL} SOL)`);
-  console.log(`Fee:                 ${fee} lamports (${Number(fee) / LAMPORTS_PER_SOL} SOL)`);
-  console.log(`Net to recipient:    ${net} lamports (${Number(net) / LAMPORTS_PER_SOL} SOL)`);
+  console.log(
+    `Gross amount:        ${bountyAmount} lamports (${Number(bountyAmount) / LAMPORTS_PER_SOL} SOL)`,
+  );
+  console.log(
+    `Fee:                 ${fee} lamports (${Number(fee) / LAMPORTS_PER_SOL} SOL)`,
+  );
+  console.log(
+    `Net to recipient:    ${net} lamports (${Number(net) / LAMPORTS_PER_SOL} SOL)`,
+  );
   console.log(`Sufficient amount?:  ${sufficient}`);
   console.log();
 
@@ -76,11 +85,14 @@ async function main() {
   // 5. Solana RPC connection
   // ========================================
   console.log("🌐 SOLANA DEVNET CONNECTION");
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+  const connection = new Connection(
+    "https://api.devnet.solana.com",
+    "confirmed",
+  );
   const slot = await connection.getSlot();
   const blockhash = await connection.getLatestBlockhash();
   console.log("Current slot:       ", slot);
-  console.log("Latest blockhash:   ", blockhash.blockhash.slice(0, 16) + "...");
+  console.log("Latest blockhash:   ", `${blockhash.blockhash.slice(0, 16)}...`);
   console.log();
 
   // ========================================
