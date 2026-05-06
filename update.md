@@ -88,6 +88,339 @@ import type { AppError } from "@tirai/api/types";
 
 ---
 
+## 3b. Peran Cloak SDK di setiap fungsi
+
+Dari 5 public function, **4 panggil Cloak SDK secara langsung**. Berikut peran SDK di tiap fungsi.
+
+### 1. `createBountyPayment` — saat project deposit bounty
+
+**Peran Cloak SDK**: bikin deposit ke shielded pool dengan privacy intact.
+
+Tanpa Cloak SDK, kalau project transfer 0.01 SOL ke researcher, alamat project ↔ researcher kelihatan jelas di chain (semua orang bisa cek "wallet A kirim ke wallet B"). Cloak SDK ngubah flow itu jadi:
+
+```
+Project setor uang ke "brankas Cloak" (shielded pool)
+       ↓ (orang nonton chain cuma lihat: wallet A → Cloak pool)
+Project dapat ticket (off-chain, dikirim ke researcher via Telegram)
+       ↓ (chain gak tau ticket ini ada)
+Researcher pakai ticket untuk withdraw (di langkah `claimBounty` nanti)
+       ↓ (orang nonton chain cuma lihat: Cloak pool → wallet B)
+```
+
+**Result**: link "wallet A → wallet B" hilang. Yang publik cuma "ada deposit & ada withdraw" terpisah.
+
+#### Spesifik yang Cloak SDK lakukan di sini:
+
+| Cloak function | Tugas |
+|---|---|
+| `generateUtxoKeypair()` | Bikin keypair khusus Cloak (beda dari Solana keypair) untuk owner UTXO yang akan dibuat |
+| `getNkFromUtxoPrivateKey()` | Derive viewing key dari keypair — kunci read-only yang nanti dipakai auditor untuk scan history |
+| `createUtxo()` | Bikin UTXO output (kayak "kupon brankas" yang nilainya 0.01 SOL, bisa ditarik nanti) |
+| `createZeroUtxo()` | Bikin UTXO input "kosong" — dibutuhin protocol Cloak untuk balance equation |
+| `transact()` | **Yang paling berat**: generate ZK proof (~30 detik) yang ngebuktiin "kita masukin uang dengan benar tanpa kasih tau siapa kita", lalu submit ke relay Cloak |
+| `calculateFeeBigint()` | Hitung berapa fee yang Cloak ambil (5M lamports tetap + 0.3% variabel) |
+
+### 2. `inspectClaimTicket` — saat researcher mau preview ticket
+
+**Peran Cloak SDK**: cek apakah ticket masih valid (belum di-claim) tanpa benerannya menjebol brankas.
+
+Tiap UTXO punya identitas unik — di Cloak namanya **nullifier**. Saat UTXO dipakai (di-withdraw), nullifier-nya ditulis di blockchain. Kalau nullifier udah ada di chain → UTXO udah dipakai → ticket dead.
+
+#### Spesifik yang Cloak SDK lakukan di sini:
+
+| Cloak function | Tugas |
+|---|---|
+| `verifyUtxos([utxo], conn, programId)` | 1× batched RPC call ke Solana — derive nullifier dari UTXO, lalu cek apakah nullifier PDA-nya ada di chain. Return `{ spent, unspent, skipped }`. Kita cuma cek `unspent.length === 1` untuk decide `isClaimable: true`. |
+
+**Tanpa SDK**: kita harus manual compute nullifier via Poseidon hash, derive PDA address, panggil `getMultipleAccountsInfo` — ~40 baris code. SDK abstract semua jadi 1 call.
+
+### 3. `claimBounty` — saat researcher ambil uang pakai ticket
+
+**Peran Cloak SDK**: withdraw dari shielded pool ke alamat researcher, dengan privacy intact.
+
+Sama dengan `createBountyPayment`, tapi arah sebaliknya. SDK ngebuktiin "kita berhak ambil uang ini" tanpa reveal "uang ini dari deposit yang mana".
+
+```
+Researcher pegang ticket → SDK reconstruct UTXO dari ticket
+       ↓
+SDK generate ZK proof: "saya punya UTXO valid di Merkle tree, hak saya untuk ambil"
+       ↓
+SDK submit via relay Cloak → relay bayar gas, submit tx ke Solana
+       ↓
+Recipient address (fresh atau existing) terima uang minus fee
+```
+
+#### Spesifik yang Cloak SDK lakukan di sini:
+
+| Cloak function | Tugas |
+|---|---|
+| `deserializeUtxo()` | Reconstruct UTXO object dari ticket bytes (yang udah di-encode saat deposit dulu) |
+| `fullWithdraw([utxo], recipient, options)` | **Yang paling berat**: gen ZK proof (~30 detik) + submit ke Cloak relay yang akan submit tx Solana + bayar gas + tunggu confirmed |
+
+**Penting**: `fullWithdraw` **TIDAK butuh signTransaction** dari user. Relay yang sign + bayar gas. User cuma "tunjuk" recipient address. Itu sebabnya researcher bisa pakai wallet baru tanpa SOL untuk gas.
+
+### 4. `scanAuditHistory` — saat auditor scan history pakai viewing key
+
+**Peran Cloak SDK**: decrypt chain notes yang diencrypt waktu deposit, sehingga auditor bisa lihat history project.
+
+Setiap deposit, Cloak SDK embed sebuah "chain note" terenkripsi di transaksi on-chain. Note ini berisi `{timestamp, commitment}` — minimal info untuk audit. Cuma yang punya viewing key (`nk`) yang bisa decrypt.
+
+```
+Auditor pegang viewing key → SDK pull SEMUA tx Cloak program di chain
+       ↓
+SDK trial-decrypt tiap chain note dgn viewing key
+       ↓
+Yang berhasil ke-decrypt = transaksi yang related ke project ini
+       ↓
+Return: list of {amount, timestamp, status, signature, ...}
+```
+
+#### Spesifik yang Cloak SDK lakukan di sini:
+
+| Cloak function | Tugas |
+|---|---|
+| `hexToBytes()` | Convert viewing key string (hex) → Uint8Array yang dipakai SDK |
+| `scanTransactions({connection, programId, viewingKeyNk})` | **Yang paling kompleks**: pull semua signatures dari Cloak program via `getSignaturesForAddress`, fetch tiap tx via `getTransaction`, parse instruction data untuk extract chain notes, trial-decrypt tiap chain note dgn viewing key, verify integrity, return list of `ScannedTransaction`. Sekitar 200-500 RPC calls untuk 1 deposit yang ke-recover. |
+
+**Tanpa SDK**: kita harus manually pull tx, parse Cloak instruction format (binary), implement chain note encryption format (AES-GCM dengan key derivation), handle edge cases (failed decryptions, malformed notes). Ribuan baris code. SDK kasih semua dalam 1 call.
+
+### Ringkasan — apa yang Cloak SDK kasih kita
+
+| Function | Cloak SDK menyediakan | Kalau gak ada SDK |
+|---|---|---|
+| `createBountyPayment` | ZK proof generation untuk deposit + UTXO creation + viewing key derivation | Mustahil — harus implement Groth16 prover sendiri (jutaan LoC) |
+| `inspectClaimTicket` | Nullifier check via 1 batched RPC | Bisa, tapi 40+ baris boilerplate |
+| `claimBounty` | ZK proof generation untuk withdraw + relay submission | Mustahil — sama kayak deposit |
+| `scanAuditHistory` | Auto-pull semua tx + decrypt chain notes via VK | Bisa, tapi ribuan baris (parsing binary instruction format Cloak) |
+
+**Bottom line**: Cloak SDK = "library yang ngubah Solana account model jadi privacy-preserving UTXO model dengan ZK proof". Tanpa SDK, kita gak bisa bikin Tirai (yang inti privasi-nya butuh ZK proof generation di browser).
+
+---
+
+## 3c. Flow integrasi end-to-end (untuk Bima)
+
+Tirai punya **3 user journey** yang saling terhubung. Berikut alur penuh dari user click sampai chain confirmed, plus state yang frontend wajib track.
+
+### 🔵 Flow A — Project bayar bounty (`/pay`)
+
+```
+[User project buka /pay]
+   ↓ fill form: amount=0.01 SOL, label="bug XSS", memo="optional"
+   ↓ klik tombol "Pay Bounty"
+   ↓
+[Frontend] connect Phantom wallet, ambil publicKey + signTransaction
+   ↓
+[adapter] payBountyAdapter(connection, wallet, input)
+   ↓ call createBountyPayment(input, ctx)
+   ↓
+[ProgressDialog] tampilkan: "Validating..." → "Generating proof..." (~30s)
+                                         → "Submitting..." → "Done"
+   ↓
+[Cloak SDK] transact() generate ZK proof + submit via relay Cloak
+   ↓ (~30 detik untuk proof gen + ~5 detik untuk relay confirm)
+   ↓
+Returns Result<BountyPaymentResult, AppError>
+   ↓
+   ┌─ ok: true → SuccessScreen ────────────────────────┐
+   │  • Render QR dari ticket.raw                       │
+   │  • Tombol "Copy Ticket" + "Copy Viewing Key"       │
+   │  • Solscan link dari signature                     │
+   │  • CTA: "Share ticket ke researcher via Telegram"  │
+   │  • Save viewingKey ke project's local store        │
+   │    (localStorage / IndexedDB) untuk /audit nanti   │
+   └─ ok: false → ErrorState (lihat error mapping ↓)   ┘
+```
+
+**State yang frontend WAJIB persist setelah `/pay`:**
+
+| Field | Tempat persist | Kenapa |
+|---|---|---|
+| `viewingKey` (64 hex) | localStorage (key: `tirai:vk:<wallet-pubkey>`) | Untuk `/audit` nanti — auditor butuh ini scan history |
+| `ticket.raw` (~447 chars) | **JANGAN persist di app** | Privacy: biarkan user yang share via Telegram, jangan store di server kita |
+| `signature` | Bisa persist sebagai history (optional) | Untuk show di list "bounty saya yang udah dibayar" |
+| `label` ↔ `signature` mapping | localStorage (project bookkeeping) | Karena `scanAuditHistory` return `label: ""` (chain gak bawa label), project sendiri yang correlate |
+
+### 🟢 Flow B — Researcher claim bounty (`/claim`)
+
+```
+[Researcher buka /claim, paste ticket dari Telegram]
+   ↓ klik tombol "Inspect"
+   ↓
+[adapter] inspectTicketAdapter(connection, ticketRaw)
+   ↓ call inspectClaimTicket(ticketRaw, ctx)
+   ↓ (~200-300ms — fast, no proof gen)
+   ↓
+   ┌─ ok: true → render preview card ──────────────────┐
+   │  • Amount: 0.01 SOL                                │
+   │  • Token: SOL (or "USDC" if SPL)                   │
+   │  • Label: "bug XSS"                                │
+   │  • Status: ✅ Claimable / ❌ Already claimed       │
+   │  • Tombol "Claim" (disabled jika !isClaimable)    │
+   └─ ok: false → ErrorState                            ┘
+   ↓
+[User klik "Claim"]
+   ↓ pilih mode: 🆕 Fresh wallet / 👛 Use my wallet
+   ↓
+   ├─ Fresh mode ─────────────────────────────────┐
+   │  • Tidak butuh wallet connection             │
+   │  • Klik konfirm → call claimBounty(...,      │
+   │    mode: { kind: "fresh" })                  │
+   │                                               │
+   ├─ Existing mode ──────────────────────────────┤
+   │  • Butuh wallet connection (Phantom dll)     │
+   │  • Connect → call claimBounty(...,           │
+   │    mode: { kind: "existing", signer })       │
+   │                                               │
+   ↓
+[ProgressDialog] "Validating..." → "Generating proof..." (~30s)
+                                → "Submitting..." → "Done"
+   ↓
+[Cloak SDK] fullWithdraw() ZK proof + relay submit
+   ↓
+Returns Result<ClaimBountyResult, AppError>
+   ↓
+   ┌─ ok: true, mode: "fresh" → SaveKeyDialog ─────────┐
+   │  • SHOW SECRETKEY 1× (mnemonic / base58 / hex)    │
+   │  • Tombol "Copy" + checkbox "I saved it"          │
+   │  • Setelah dialog ditutup:                        │
+   │    secretKey.fill(0)  ← zero-out memory           │
+   │  • Tampilkan destination address + Solscan tx     │
+   │                                                    │
+   ├─ ok: true, mode: "existing" → SuccessScreen ──────┤
+   │  • Tampilkan destination + Solscan tx             │
+   │  • Tidak ada secretKey                            │
+   │                                                    │
+   └─ ok: false → ErrorState                            ┘
+```
+
+**State yang frontend WAJIB handle hati-hati di `/claim`:**
+
+| Hal | Aturan | Kenapa |
+|---|---|---|
+| `secretKey` (Uint8Array) | **Display sekali, lalu `secretKey.fill(0)`. Jangan masuk state global, localStorage, telemetry.** | Privacy: bocor = wallet kosong selamanya |
+| Logger/Sentry breadcrumb | Filter `secretKey`, `viewingKey`, `ticket` dari semua log | Privacy boundary, rules.md §0 |
+| URL params | `secretKey` JANGAN pernah masuk URL | Browser history → leak |
+
+### 🟡 Flow C — Project audit history (`/audit`)
+
+```
+[User project buka /audit]
+   ↓ Auto-load viewingKey dari localStorage (jika ada)
+   ↓ Atau prompt: "Paste viewing key" (kalau pertama kali / device baru)
+   ↓ klik tombol "Scan History"
+   ↓
+[adapter] scanAuditAdapter(connection, viewingKey)
+   ↓ call scanAuditHistory({viewingKey}, ctx)
+   ↓ ⚠️ Slow path: ~30-90 detik (200-500 RPC calls)
+   ↓ Show ScanProgressDialog dengan onProgress callback (TBD)
+   ↓
+[Cloak SDK] scanTransactions() pull all program tx + decrypt
+   ↓
+Returns Result<AuditHistory, AppError>
+   ↓
+   ┌─ ok: true → render dashboard ─────────────────────┐
+   │  • SummaryCard: totalPayments, totalVolume,       │
+   │    latestActivityAt                               │
+   │  • Table (paginated jika banyak):                 │
+   │    timestamp | status | amount | mint | sig       │
+   │  • Tombol "Download CSV" + "Download PDF"         │
+   └─ ok: false → ErrorState                            ┘
+   ↓
+[User klik "Download CSV/PDF"]
+   ↓
+[adapter] exportAuditAdapter(history, "csv" | "pdf")
+   ↓ call exportAuditReport(history, format)
+   ↓ Returns Result<Blob, AppError>
+   ↓
+[Trigger browser download]
+   • const url = URL.createObjectURL(blob)
+   • <a href={url} download="tirai-audit-2026-05-07.csv" />
+   • setTimeout(() => URL.revokeObjectURL(url), 0)
+```
+
+**Catatan penting `/audit`:**
+
+| Hal | Aturan | Kenapa |
+|---|---|---|
+| `label` di tabel | Render "—" atau correlate dari project bookkeeping | `AuditEntry.label` selalu `""` (label gak on-chain) |
+| `recipient` column | **TIDAK ADA** di output kita | Privacy boundary 3 — auditor gak boleh tau alamat researcher |
+| Empty state | `entries: []` valid — render "No activity yet" | Auditor bisa scan VK yang belum pernah dipakai |
+| RPC slow | Kasih ScanProgressDialog dgn estimasi waktu | Tanpa indicator, user kira app freeze |
+
+---
+
+### 📡 State + data flow lintas page (overview)
+
+```
+                 ┌─────────────────────────────────────────┐
+                 │  Project user (yang bayar bounty)       │
+                 └──────────────┬──────────────────────────┘
+                                │ 1. Pay /pay
+                                ↓
+   ┌────────────────────────────────────────────────────────┐
+   │  createBountyPayment → { ticket, viewingKey, sig }     │
+   └────┬──────────────┬────────────────────────────────────┘
+        │              │
+        │ 2. Save VK   │ 3. Share ticket via Telegram (off-app)
+        ↓              ↓
+   ┌─────────┐   ┌──────────────────────────────────────────┐
+   │localStor│   │  Researcher (di luar app, di Telegram)   │
+   │age (VK) │   └──────────────┬───────────────────────────┘
+   └────┬────┘                  │ 4. Open /claim, paste ticket
+        │                       ↓
+        │              ┌──────────────────────────────────┐
+        │              │  inspectClaimTicket → preview    │
+        │              │  → claimBounty → withdraw + sig  │
+        │              └──────────────────────────────────┘
+        │
+        │ 5. Later: project audit
+        ↓
+   ┌──────────────────────────────────────────────────────┐
+   │  scanAuditHistory(VK) → entries[]                    │
+   │  → exportAuditReport(entries, "pdf"|"csv") → Blob    │
+   └──────────────────────────────────────────────────────┘
+```
+
+**Penting:** `ticket` itu privasi sensitif (siapa pegang, dia bisa claim). Frontend kita **TIDAK** boleh persist ticket — biarkan project share manually via Telegram/email. Yang persist cuma viewing key (read-only audit access, bukan spending).
+
+---
+
+### ⚠️ Error handling — AppError kind ↔ UI behavior
+
+Semua function return `Result<T, AppError>`. AppError adalah discriminated union dengan 9+ kind. Mapping rekomendasi ke UI:
+
+| `error.kind` | Kapan kejadiannya | UI behavior |
+|---|---|---|
+| `INVALID_INPUT` | Input format salah (mint bukan base58, dll) | Show inline form error, highlight field `error.field` |
+| `INSUFFICIENT_BALANCE` | Wallet kurang SOL untuk deposit + fee | Show "Top up wallet, butuh ≥X SOL" |
+| `USER_REJECTED` | User batalkan signing di Phantom | Silent — close dialog, balik ke form |
+| `NULLIFIER_CONSUMED` | Ticket sudah pernah di-claim | "Ticket sudah pernah di-redeem" + tombol "Lihat di Solscan" |
+| `WRONG_CLUSTER` | Ticket cluster ≠ ctx.cluster | "Ticket ini untuk {expected} network, bukan {got}" |
+| `RPC` | RPC error (429, network, timeout) | "Network error, coba lagi" + retry button (kalau `retryable: true`) |
+| `PROOF_GENERATION_FAILED` | ZK prover gagal (rare) | "Proof generation failed, refresh dan coba lagi" |
+| `TICKET_DECODE_FAILED` | Ticket malformed | "Ticket tidak valid — pastikan kamu copy lengkap" |
+| `VIEWING_KEY_INVALID` | VK bukan 64 hex chars | "Viewing key harus 64 karakter hex" |
+| `UNKNOWN` | Fallback untuk error gak ke-handle | "Terjadi kesalahan: {message}" + Sentry log |
+
+Pattern recommended di adapter layer:
+
+```ts
+const result = await createBountyPayment(input, ctx);
+if (!result.ok) {
+  switch (result.error.kind) {
+    case "INVALID_INPUT": throw new FormError(result.error.field, result.error.message);
+    case "USER_REJECTED": return null; // silent
+    case "RPC": if (result.error.retryable) showRetryToast(); else showErrorToast(result.error.message); break;
+    // ... map lainnya
+    default: showGenericError(result.error);
+  }
+  return null;
+}
+return result.value;
+```
+
+---
+
 ## 4. Contoh wiring `/pay` (real, sudah bisa test)
 
 ```ts
@@ -492,14 +825,22 @@ Untuk demo hackathon: prepare 1-2 entries di history, scan akan complete ~1-2 me
 
 ## 8. Roadmap
 
-| Hari | Deliverable                                                     | Status |
-| ---- | --------------------------------------------------------------- | ------ |
-| 1–3  | Types + ticket encode/decode + `createBountyPayment`            | ✅ done |
-| 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) + e2e   | ✅ done |
-| 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV) + e2e      | ✅ done |
-| 6    | Mainnet rehearsal (deposit kecil, demo evidence)                | ⏳ next |
+| Hari | Deliverable                                                     | Status        |
+| ---- | --------------------------------------------------------------- | ------------- |
+| 1–3  | Types + ticket encode/decode + `createBountyPayment`            | ✅ done        |
+| 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) + e2e   | ✅ done        |
+| 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV) + e2e      | ✅ done        |
+| ~~6~~  | ~~Mainnet rehearsal~~                                           | ❌ skipped    |
+| 6    | Demo prep — DoD sweep + README + recording                      | ⏳ next        |
 
-Backend implementation done. Tinggal mainnet rehearsal sebelum demo.
+**Decision 2026-05-07:** demo + submission pakai **devnet only**. Mainnet rehearsal di-skip — Cloak Track judges focus ke privacy implementation, bukan mainnet evidence. Solscan links di pitch wajib pakai `?cluster=devnet` query param.
+
+Backend implementation done. Tinggal demo prep:
+
+- Sweep instruction.md §11 DoD checklist
+- README backend (kalau belum)
+- `pnpm approve-builds` untuk turun proof gen ~30s → ~3s (UX demo)
+- Recording demo flow (pay → claim → audit) dengan devnet
 
 Kabari saya di chat begitu Phase 4 `/pay` + `/claim` + `/audit` kamu wired up — saya bantu debug kalau ada mismatch.
 
