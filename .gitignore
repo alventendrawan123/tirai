@@ -145,6 +145,8 @@ vite.config.ts.timestamp-*
 # Tirai-specific
 test-wallets/
 *.keypair.json
+tmp/
+backend/tmp/
 
 # Claude Code local settings
 .claude/

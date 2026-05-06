@@ -1,12 +1,12 @@
 # Update untuk Bima — backend `@tirai/api` ready (Hari 1–3)
 
-**Dari:** Alven · **Update terakhir:** 2026-05-06 · **Status backend:** Hari 1–4 done, dua smoke test devnet PASS
+**Dari:** Alven · **Update terakhir:** 2026-05-07 · **Status backend:** Hari 1–5 done, semua fungsi public real (no more stubs)
 
 ---
 
 ## TL;DR
 
-Hari 4 ship: `inspectClaimTicket` + `claimBounty` (fresh + existing) full implementation. End-to-end devnet test PASS — deposit → inspect (claimable=true) → claim (fresh keypair, withdraw signature [`2LcuAyJ5...wX1KM1dd`](https://solscan.io/tx/2LcuAyJ5mFZ31EUAuU5kQR3BwTBXm1C8BRK4Yzj82iFFPuafhfrn8ZhK7pYEuEUqAHNvLrk7gVXtzyobwX1KM1dd?cluster=devnet)) → re-inspect (claimable=false). Nullifier check flips correctly. Sekarang `/pay` **dan** `/claim` udah real backed. Tinggal `/audit` (Hari 5) yang masih stub.
+Backend full implementation complete. Semua 5 fungsi public real, no more stubs. End-to-end devnet test PASS untuk `/audit`: deposit → `scanAuditHistory` (recover entry via viewing key) → `exportAuditReport` (CSV + PDF rendered). Privacy invariant verified: `recipient` field di-strip dari output, no leak ke caller. Sekarang **all 3 halaman frontend (`/pay`, `/claim`, `/audit`)** punya real backend behind them.
 
 ---
 
@@ -81,10 +81,10 @@ import type { AppError } from "@tirai/api/types";
 | `createBountyPayment` | ✅ **REAL** (Hari 3) | Hit Cloak devnet, return signature + ticket + viewing key                      |
 | `inspectClaimTicket`  | ✅ **REAL** (Hari 4) | Decode + `verifyUtxos` nullifier check, returns `isClaimable` boolean          |
 | `claimBounty`         | ✅ **REAL** (Hari 4) | Decode + `fullWithdraw`, fresh + existing modes (relay submits, no signing)    |
-| `scanAuditHistory`    | ⏳ Stub (Hari 5)     | Return `{ ok: false, error: { kind: "UNKNOWN", message: "not implemented" } }` |
-| `exportAuditReport`   | ⏳ Stub (Hari 5)     | Same                                                                           |
+| `scanAuditHistory`    | ✅ **REAL** (Hari 5) | Decode VK + `scanTransactions`, **drop `recipient` field**, return AuditHistory |
+| `exportAuditReport`   | ✅ **REAL** (Hari 5) | CSV (hand-built, no `recipient`) + PDF (pdf-lib, paginated)                    |
 
-**Action untuk kamu:** wire `/pay` + `/claim` adapter sekarang dengan signature persis di atas. `/audit` masih stub — wire adapter signature-nya tapi expect `UNKNOWN` error sampai Hari 5 done.
+**Action untuk kamu:** wire **all 5 adapter** sekarang dengan signature persis di atas. Tidak ada stub yang tersisa — frontend `/pay` + `/claim` + `/audit` semua bisa dipanggil dengan real chain interaction.
 
 ---
 
@@ -264,6 +264,89 @@ Return (`ok: true`, `mode: "existing"`):
 
 ---
 
+## 4c. Contoh wiring `/audit` (real, baru ship di Hari 5)
+
+`/audit` punya 2 fungsi: `scanAuditHistory` (auditor kasih VK, dapat list AuditEntry) + `exportAuditReport` (download CSV/PDF). Semua read-only, no signing.
+
+### Step 1: scan via viewing key
+
+```ts
+// frontend/src/features/audit/adapters/audit.adapter.ts
+import { scanAuditHistory } from "@tirai/api";
+import type { Connection } from "@solana/web3.js";
+
+export async function scanAuditAdapter(
+  connection: Connection,
+  viewingKey: string,
+) {
+  return scanAuditHistory(
+    { viewingKey },
+    {
+      connection,
+      cluster: "devnet",
+      // Optional perf knobs (default sudah safe untuk free-tier RPC):
+      // limit: 200,           // max signatures to scan
+      // batchSize: 3,         // RPC parallelism — default 3 fits Helius/QuickNode free tier
+      // untilSignature: ...,  // resume from last scan for incremental updates
+      // afterTimestamp: ...,  // filter older than X ms
+    },
+  );
+}
+```
+
+Return (`ok: true`):
+
+```ts
+{
+  entries: [
+    {
+      timestamp: 1715000000000,
+      amountLamports: 10_000_000n,
+      tokenMint: null,           // null = native SOL, base58 = SPL
+      label: "",                 // ⚠ empty — tidak on-chain (lihat catatan)
+      status: "deposited",       // "deposited" | "claimed" | "expired"
+      signature: "3bdWnz3LpkbP...",
+    },
+    // ... more entries
+  ],
+  summary: {
+    totalPayments: 1,
+    totalVolumeLamports: 10_000_000n,
+    latestActivityAt: 1715000000000,
+  },
+}
+```
+
+### Step 2: export ke CSV/PDF
+
+```ts
+import { exportAuditReport } from "@tirai/api";
+
+export async function exportAuditCsv(history: AuditHistory) {
+  const result = await exportAuditReport(history, "csv");
+  if (!result.ok) throw new Error(result.error.kind);
+  // result.value adalah Blob — trigger download:
+  const url = URL.createObjectURL(result.value);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `tirai-audit-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+```
+
+PDF flow sama, tinggal ganti `"csv"` → `"pdf"` dan ekstensi file.
+
+**Catatan penting `scanAuditHistory`:**
+
+- **`label` selalu empty.** Label hanya ada di ticket envelope (off-chain), tidak di-embed ke chain note. Auditor tidak bisa recover label dari chain. Frontend bisa correlate signature ↔ label via project's local bookkeeping kalau diperlukan.
+- **`AuditEntry.recipient` TIDAK ADA.** Sengaja di-strip dari SDK output (privacy boundary 3 — auditor tidak boleh tau alamat researcher). CSV header juga gak punya kolom `recipient`.
+- **Free-tier RPC bisa lambat.** Default `batchSize: 3` fit Helius/QuickNode free tier (~10 RPS). Smoke test devnet dengan 200 sig limit selesai ~60-90s. Untuk paid RPC (Helius Developer $49/mo), set `batchSize: 20-50` untuk speedup.
+- **Status enum:** `"deposited"` (deposit ke pool) atau `"claimed"` (withdraw dari pool). `"expired"` reserved tapi belum di-emit (UTXO gak expire on-chain — kalau project mau decorate "expired", lakukan client-side berdasarkan policy off-chain).
+- **Empty result OK.** Kalau VK belum pernah dipakai deposit, `entries: []` + `summary.totalPayments: 0` — `exportAuditReport` tetap bisa generate PDF/CSV dengan summary "0 entries".
+
+---
+
 ## 5. Privacy invariants — JANGAN DILANGGAR (rules.md §0, §12, §15)
 
 Saat wire adapter/UI, hindari:
@@ -316,6 +399,22 @@ Net received:     0.00497 SOL (= 0.01 deposit − 0.00503 fee)
 Inspect (post):   isClaimable: false  ← nullifier consumed, ticket dead
 ```
 
+### Hari 5 — full e2e (`pay → scan → export CSV+PDF`)
+
+```
+Deposit tx:       3bdWnz3LpkbP8VsQb4QduKdV7mwBTY86hhDK6hacC8vA11tPvH17LWUKxGrTenqfKHHdpDrsZwR13wqW26t4utNd
+                  https://solscan.io/tx/3bdWnz3LpkbP8VsQb4QduKdV7mwBTY86hhDK6hacC8vA11tPvH17LWUKxGrTenqfKHHdpDrsZwR13wqW26t4utNd?cluster=devnet
+
+Scan via VK:      Total payments: 1
+                  Latest activity: 2026-05-06T17:03:14.190Z
+                  1 entry: deposited, 10_000_000 lamports, sig 3bdWnz3LpkbP...
+
+Privacy check:    ✅ no 'recipient' field in any entry
+
+CSV exported:     199 bytes, header: timestamp_iso,status,amount_lamports,token_mint,label,signature
+PDF exported:     1416 bytes, magic %PDF-1.7, "Tirai Audit Report" + 1-row table
+```
+
 Wallet payer ada di `test-wallets/devnet.json` (gitignored). Kalau kamu mau run sendiri di backend, minta saya share secret key via channel aman (atau generate sendiri pakai `pnpm setup:devnet`).
 
 ```bash
@@ -325,6 +424,10 @@ pnpm test:bounty
 # Full e2e (pay → inspect → claim → re-inspect)
 pnpm test:claim                    # default mode=fresh
 CLAIM_MODE=existing pnpm test:claim # withdraw to payer wallet itself
+
+# Full e2e audit (deposit + scan + export CSV/PDF)
+# Requires Helius/QuickNode RPC for fast scan — public devnet RPC akan 429 storm
+SOLANA_RPC_URL="https://devnet.helius-rpc.com/?api-key=YOUR_KEY" pnpm test:audit
 ```
 
 ---
@@ -377,6 +480,14 @@ Kalau di `frontend/src/config/cloak.ts` masih hardcode mainnet ID, **update ke d
 
 Saat ini proof gen pakai pure-JS fallback (~30s per deposit). Saya akan run `pnpm approve-builds` di root setelah ini supaya turun ke ~3-5s. Re-run `pnpm install` di frontend juga setelahnya supaya kamu dapat binary yang sama.
 
+### RPC requirement untuk `/audit`
+
+`scanAuditHistory` ngirim banyak `getTransaction` calls sekaligus untuk decrypt chain notes. Public devnet RPC (`api.devnet.solana.com`) **tidak cocok** untuk ini — rate limit ketat (~1 RPS effectively) → 429 storm tanpa progress.
+
+**Production-safe defaults sudah di-bake-in:** `batchSize: 3` (override kalau RPC paid). Smoke test dengan Helius free tier (10 RPS) tetap kena banyak 429 retry tapi SDK auto-recover via exponential backoff — eventually selesai dalam 60-90 detik untuk 200 sigs. Untuk UX production-grade, frontend perlu paid RPC (Helius Developer $49/mo, atau QuickNode/Triton equivalent).
+
+Untuk demo hackathon: prepare 1-2 entries di history, scan akan complete ~1-2 menit. Cukup untuk recording.
+
 ---
 
 ## 8. Roadmap
@@ -385,22 +496,26 @@ Saat ini proof gen pakai pure-JS fallback (~30s per deposit). Saya akan run `pnp
 | ---- | --------------------------------------------------------------- | ------ |
 | 1–3  | Types + ticket encode/decode + `createBountyPayment`            | ✅ done |
 | 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) + e2e   | ✅ done |
-| 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV)            | ⏳ next |
-| 6    | Mainnet rehearsal (deposit kecil, demo evidence)                | ⏳      |
+| 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV) + e2e      | ✅ done |
+| 6    | Mainnet rehearsal (deposit kecil, demo evidence)                | ⏳ next |
 
-Kabari saya di chat begitu Phase 4 `/pay` + `/claim` kamu wired up — saya bantu debug kalau ada mismatch.
+Backend implementation done. Tinggal mainnet rehearsal sebelum demo.
+
+Kabari saya di chat begitu Phase 4 `/pay` + `/claim` + `/audit` kamu wired up — saya bantu debug kalau ada mismatch.
 
 ---
 
 ## 9. Open questions yang butuh konfirmasi kamu
 
-1. **Status enum di `AuditEntry`** — instruction.md §4.4 sebut `"deposited" | "claimed" | "expired"`. Tapi mock kamu di `audit.types.ts` ada `"confirmed" | "pending" | "failed"`. Mau ikut yang mana? Saya pakai yang di instruction.md untuk Hari 5, tapi kalau kamu prefer yang lain, kabari sekarang sebelum saya implement.
+1. **Status enum di `AuditEntry`** — saya pakai `"deposited" | "claimed" | "expired"` per instruction.md §4.4 (sudah implemented). Mock kamu di `audit.types.ts` masih `"confirmed" | "pending" | "failed"` — perlu align ke kontrak. **`"expired"` saat ini tidak pernah di-emit** (UTXO gak expire on-chain) — kalau frontend mau decorate "expired" badge, lakukan client-side berdasarkan policy off-chain (e.g. >30 hari sejak deposit & belum claimed).
 
 2. **`secretKey` format di `BountyPaymentResult` mode fresh** — saya return `Uint8Array` (raw 64-byte ed25519 secret). Kamu butuh format lain untuk SaveKeyDialog (base58? hex? mnemonic)? Kalau iya, conversion lebih cocok di frontend.
 
-3. **Display field di `BountyPaymentResult`** — saya cuma return `ticket`, `viewingKey`, `signature`, `feeLamports`. Apakah `/pay` butuh field lain (misal `explorerUrl` pre-built, atau `createdAt`)? Saya bisa tambah di Hari 4 round.
+3. **Display field di `BountyPaymentResult`** — saya cuma return `ticket`, `viewingKey`, `signature`, `feeLamports`. Apakah `/pay` butuh field lain (misal `explorerUrl` pre-built, atau `createdAt`)? Saya bisa tambah kapan aja.
 
 4. **Devnet program ID di frontend config** — apakah `frontend/src/config/cloak.ts` sudah update ke `Zc1kHfp...`? Kalau belum, tolong update sebelum mulai Phase 4 testing.
+
+5. **RPC config di frontend** — `/audit` page perlu RPC yang lebih kuat dari public devnet untuk scan workload. Setup `VITE_SOLANA_RPC_URL` env var di frontend untuk pakai Helius/QuickNode endpoint, fallback ke public RPC (yang bakal lambat tapi tetep jalan via auto-retry).
 
 Reply di chat atau create issue di repo untuk async resolve.
 
@@ -412,7 +527,7 @@ Reply di chat atau create issue di repo untuk async resolve.
 # Dari root
 pnpm install
 pnpm -F @tirai/api typecheck     # 0 errors expected
-pnpm -F @tirai/api test          # 15/15 tests pass (8 ticket + 3 bounty + 4 claim)
+pnpm -F @tirai/api test          # 25/25 tests pass (8 ticket + 3 bounty + 4 claim + 10 audit)
 pnpm -F @tirai/api lint          # 0 errors
 ```
 
