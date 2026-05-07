@@ -13,6 +13,7 @@ export type {
   ClaimTicket,
   ClaimTicketPreview,
   ClaimWalletMode,
+  Cluster,
   CreateBountyPaymentInput,
   InspectContext,
   ProgressEmitter,

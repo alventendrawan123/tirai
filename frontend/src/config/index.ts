@@ -1,4 +1,8 @@
-export { CLOAK_SHIELD_POOL_PROGRAM_ID } from "./cloak";
+export {
+  CLOAK_DEVNET_PROGRAM_ID,
+  CLOAK_MAINNET_PROGRAM_ID,
+  cloakProgramId,
+} from "./cloak";
 export {
   type Cluster,
   type ClusterConfig,
