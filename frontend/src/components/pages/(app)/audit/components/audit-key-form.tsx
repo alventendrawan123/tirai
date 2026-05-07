@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -32,6 +32,10 @@ export function AuditKeyForm({
 }: AuditKeyFormProps) {
   const [value, setValue] = useState(initialKey);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(initialKey);
+  }, [initialKey]);
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
