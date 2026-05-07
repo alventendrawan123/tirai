@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   turbopack: {
     root: workspaceRoot,
+    resolveAlias: {
+      buffer: "buffer/",
+      "node:buffer": "buffer/",
+      "next/dist/compiled/buffer": "buffer/",
+      process: "process/browser",
+      "node:process": "process/browser",
+    },
   },
   outputFileTracingRoot: workspaceRoot,
   transpilePackages: ["@tirai/api"],

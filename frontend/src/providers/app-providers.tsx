@@ -1,5 +1,6 @@
 "use client";
 
+import "@/lib/polyfills/node";
 import type { ReactNode } from "react";
 import { ClusterProvider } from "./cluster-provider";
 import { QueryProvider } from "./query-provider";

@@ -2,6 +2,7 @@ import type { WalletContextState } from "@solana/wallet-adapter-react";
 import type { Connection } from "@solana/web3.js";
 import { claimBounty } from "@tirai/api";
 import { safeAdapter } from "@/lib/errors";
+import { ensureBufferPolyfill } from "@/lib/polyfills/ensure-buffer";
 import type {
   AppError,
   ClaimBountyResult,
@@ -20,6 +21,7 @@ export async function claimFreshAdapter(
   ticketRaw: string,
   ctx: ClaimAdapterContext,
 ): Promise<Result<ClaimBountyResult, AppError>> {
+  ensureBufferPolyfill();
   return safeAdapter(() =>
     claimBounty(
       { ticket: ticketRaw, mode: { kind: "fresh" } },
@@ -37,6 +39,7 @@ export async function claimExistingAdapter(
   wallet: WalletContextState,
   ctx: ClaimAdapterContext,
 ): Promise<Result<ClaimBountyResult, AppError>> {
+  ensureBufferPolyfill();
   if (!wallet.publicKey || !wallet.signTransaction) {
     return {
       ok: false,

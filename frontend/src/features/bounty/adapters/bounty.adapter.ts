@@ -2,6 +2,7 @@ import type { WalletContextState } from "@solana/wallet-adapter-react";
 import type { Connection } from "@solana/web3.js";
 import { createBountyPayment } from "@tirai/api";
 import { safeAdapter } from "@/lib/errors";
+import { ensureBufferPolyfill } from "@/lib/polyfills/ensure-buffer";
 import type {
   AppError,
   BountyPaymentResult,
@@ -30,6 +31,7 @@ export async function payBountyAdapter(
   input: PayBountyAdapterInput,
   ctx: PayBountyAdapterContext,
 ): Promise<Result<BountyPaymentResult, AppError>> {
+  ensureBufferPolyfill();
   if (!ctx.wallet.publicKey || !ctx.wallet.signTransaction) {
     return {
       ok: false,

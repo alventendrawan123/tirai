@@ -50,7 +50,9 @@ describe("URL never carries ticket / viewing key / secret", () => {
     });
     const user = userEvent.setup();
     renderWithProviders(<PayPage />, { wallet: { publicKey: STUB_PUBKEY } });
+    await user.clear(screen.getByLabelText(/amount/i));
     await user.type(screen.getByLabelText(/amount/i), "0.01");
+    await user.clear(screen.getByLabelText(/researcher label/i));
     await user.type(screen.getByLabelText(/researcher label/i), "x");
     await user.click(screen.getByRole("button", { name: /pay bounty/i }));
     await waitFor(() => {

@@ -17,7 +17,7 @@ export interface WalletProviderProps {
 }
 
 export function WalletProvider({ children }: WalletProviderProps) {
-  const { rpcProxyPath } = useCluster();
+  const { rpcProxyPath, wsEndpoint } = useCluster();
   const [endpoint, setEndpoint] = useState<string>(() => {
     if (typeof window === "undefined") return "http://localhost";
     return resolveBrowserRpcEndpoint(rpcProxyPath);
@@ -32,8 +32,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
     [],
   );
 
+  const connectionConfig = useMemo(
+    () => ({ commitment: "confirmed" as const, wsEndpoint }),
+    [wsEndpoint],
+  );
+
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider endpoint={endpoint} config={connectionConfig}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>

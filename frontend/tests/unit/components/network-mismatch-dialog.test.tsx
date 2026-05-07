@@ -34,6 +34,7 @@ function makeCluster(
   return {
     cluster,
     rpcProxyPath: "/api/rpc",
+    wsEndpoint: "ws://localhost:8900",
     label: cluster,
     explorerBase: "x",
   };

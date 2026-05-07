@@ -37,7 +37,9 @@ describe("/pay full flow integration", () => {
     const user = userEvent.setup();
     renderWithProviders(<PayPage />, { wallet: { publicKey: STUB_PUBKEY } });
 
+    await user.clear(screen.getByLabelText(/amount/i));
     await user.type(screen.getByLabelText(/amount/i), "0.01");
+    await user.clear(screen.getByLabelText(/researcher label/i));
     await user.type(screen.getByLabelText(/researcher label/i), "demo");
     await user.click(screen.getByRole("button", { name: /pay bounty/i }));
 
@@ -60,7 +62,9 @@ describe("/pay full flow integration", () => {
     const user = userEvent.setup();
     renderWithProviders(<PayPage />, { wallet: { publicKey: STUB_PUBKEY } });
 
+    await user.clear(screen.getByLabelText(/amount/i));
     await user.type(screen.getByLabelText(/amount/i), "0.01");
+    await user.clear(screen.getByLabelText(/researcher label/i));
     await user.type(screen.getByLabelText(/researcher label/i), "demo");
     await user.click(screen.getByRole("button", { name: /pay bounty/i }));
 
@@ -80,7 +84,9 @@ describe("/pay full flow integration", () => {
   it("amount validation blocks submission for negative input", async () => {
     const user = userEvent.setup();
     renderWithProviders(<PayPage />, { wallet: { publicKey: STUB_PUBKEY } });
+    await user.clear(screen.getByLabelText(/amount/i));
     await user.type(screen.getByLabelText(/amount/i), "abc");
+    await user.clear(screen.getByLabelText(/researcher label/i));
     await user.type(screen.getByLabelText(/researcher label/i), "x");
     await user.click(screen.getByRole("button", { name: /pay bounty/i }));
     await waitFor(() => {

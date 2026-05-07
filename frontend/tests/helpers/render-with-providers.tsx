@@ -48,6 +48,7 @@ function buildClusterConfig(
   return {
     cluster,
     rpcProxyPath,
+    wsEndpoint: "ws://localhost:8900",
     label: labels[cluster],
     explorerBase: explorers[cluster],
   };

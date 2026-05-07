@@ -5,6 +5,7 @@ const ClusterSchema = z.enum(["mainnet", "devnet", "localnet"]);
 const ClientEnvSchema = z.object({
   NEXT_PUBLIC_SOLANA_CLUSTER: ClusterSchema.default("devnet"),
   NEXT_PUBLIC_RPC_PROXY_PATH: z.string().min(1).default("/api/rpc"),
+  NEXT_PUBLIC_SOLANA_WS_URL: z.string().optional(),
 });
 
 const ServerEnvSchema = z.object({
@@ -14,6 +15,7 @@ const ServerEnvSchema = z.object({
 const clientParsed = ClientEnvSchema.safeParse({
   NEXT_PUBLIC_SOLANA_CLUSTER: process.env.NEXT_PUBLIC_SOLANA_CLUSTER,
   NEXT_PUBLIC_RPC_PROXY_PATH: process.env.NEXT_PUBLIC_RPC_PROXY_PATH,
+  NEXT_PUBLIC_SOLANA_WS_URL: process.env.NEXT_PUBLIC_SOLANA_WS_URL,
 });
 
 if (!clientParsed.success) {

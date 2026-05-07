@@ -34,8 +34,8 @@ export function PayFormCard({
   disabled,
 }: PayFormCardProps) {
   const [values, setValues] = useState<PayFormValues>({
-    amountSol: "",
-    label: "",
+    amountSol: "0.1",
+    label: "Test bounty",
     memo: "",
   });
   const [errors, setErrors] = useState<PayFormErrors>({});
