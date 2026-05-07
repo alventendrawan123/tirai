@@ -35,6 +35,31 @@ export type ClaimBountyResult =
       signature: string;
     };
 
+const MAX_PROOF_RETRIES = 4;
+const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 20_000];
+
+const PROOF_RETRY_PATTERNS = [
+  "error in template",
+  "forceequalifenabled",
+  "transaction_222",
+  "witness",
+  "snarkjs",
+  "note index is stale",
+  "does not match relay tree",
+];
+
+function isRetryableProofError(error: unknown): boolean {
+  const msg =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase();
+  return PROOF_RETRY_PATTERNS.some((p) => msg.includes(p));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function claimBounty(
   input: ClaimBountyInput,
   ctx: ClaimContext,
@@ -59,32 +84,55 @@ export async function claimBounty(
     recipient = input.mode.signer.publicKey;
   }
 
-  try {
-    ctx.onProgress?.("validate");
-    ctx.onProgress?.("generate-proof");
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= MAX_PROOF_RETRIES; attempt++) {
+    try {
+      ctx.onProgress?.("validate");
+      ctx.onProgress?.("generate-proof");
+      if (attempt > 0) {
+        ctx.onProgress?.(
+          "generate-proof",
+          `Retrying after relay sync (attempt ${attempt + 1}/${MAX_PROOF_RETRIES + 1})…`,
+        );
+      }
 
-    const result = await fullWithdraw([decoded.value.utxo], recipient, {
-      connection: ctx.connection,
-      programId: getProgramId(ctx.cluster),
-      enforceViewingKeyRegistration: false,
-    });
+      const result = await fullWithdraw([decoded.value.utxo], recipient, {
+        connection: ctx.connection,
+        programId: getProgramId(ctx.cluster),
+        enforceViewingKeyRegistration: false,
+        useChainRootForProof: true,
+        maxRootRetries: 8,
+        retryDelayMs: 5_000,
+      });
 
-    ctx.onProgress?.("done");
+      ctx.onProgress?.("done");
 
-    if (freshKeypair) {
+      if (freshKeypair) {
+        return ok({
+          mode: "fresh",
+          destination: recipient.toBase58(),
+          secretKey: freshKeypair.secretKey,
+          signature: result.signature,
+        });
+      }
       return ok({
-        mode: "fresh",
+        mode: "existing",
         destination: recipient.toBase58(),
-        secretKey: freshKeypair.secretKey,
         signature: result.signature,
       });
+    } catch (error) {
+      lastError = error;
+      if (attempt < MAX_PROOF_RETRIES && isRetryableProofError(error)) {
+        const wait = RETRY_BACKOFF_MS[attempt] ?? 20_000;
+        ctx.onProgress?.(
+          "generate-proof",
+          `Relay tree not yet synced — waiting ${Math.round(wait / 1000)}s before retry…`,
+        );
+        await delay(wait);
+        continue;
+      }
+      return err(parseSdkError(error));
     }
-    return ok({
-      mode: "existing",
-      destination: recipient.toBase58(),
-      signature: result.signature,
-    });
-  } catch (error) {
-    return err(parseSdkError(error));
   }
+  return err(parseSdkError(lastError));
 }

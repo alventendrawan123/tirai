@@ -9,4 +9,8 @@ export interface ClaimTicketEnvelope {
   n?: string;
   u: string;
   t: number;
+  i?: number;
+  s?: string;
+  ls?: string;
+  cm?: string;
 }

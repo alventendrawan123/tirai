@@ -16,6 +16,10 @@ const EnvelopeSchema = z.object({
   n: z.string().optional(),
   u: z.string().min(1),
   t: z.number(),
+  i: z.number().int().nonnegative().optional(),
+  s: z.string().optional(),
+  ls: z.string().optional(),
+  cm: z.string().optional(),
 });
 
 export interface DecodedTicket {
@@ -47,6 +51,10 @@ export async function decodeClaimTicket(
       u: schema.u,
       t: schema.t,
       ...(schema.n !== undefined ? { n: schema.n } : {}),
+      ...(schema.i !== undefined ? { i: schema.i } : {}),
+      ...(schema.s !== undefined ? { s: schema.s } : {}),
+      ...(schema.ls !== undefined ? { ls: schema.ls } : {}),
+      ...(schema.cm !== undefined ? { cm: schema.cm } : {}),
     };
   } catch (error) {
     return err({
@@ -61,7 +69,24 @@ export async function decodeClaimTicket(
   try {
     tokenMint = new PublicKey(envelope.m);
     amountBaseUnits = BigInt(envelope.a);
-    utxo = await deserializeUtxo(base64UrlToBytes(envelope.u));
+    const decoded = (await deserializeUtxo(
+      base64UrlToBytes(envelope.u),
+    )) as Utxo & {
+      leftSiblingCommitment?: bigint;
+    };
+    if (envelope.i !== undefined) {
+      decoded.index = envelope.i;
+    }
+    if (envelope.s !== undefined) {
+      decoded.siblingCommitment = BigInt(`0x${envelope.s}`);
+    }
+    if (envelope.ls !== undefined) {
+      decoded.leftSiblingCommitment = BigInt(`0x${envelope.ls}`);
+    }
+    if (envelope.cm !== undefined) {
+      decoded.commitment = BigInt(`0x${envelope.cm}`);
+    }
+    utxo = decoded;
   } catch (error) {
     return err({
       kind: "TICKET_DECODE_FAILED",

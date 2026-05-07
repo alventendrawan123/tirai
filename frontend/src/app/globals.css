@@ -15,6 +15,8 @@
   --color-border-subtle: #e5e5e5;
   --color-border-strong: #0a0a0a;
 
+  --color-overlay: rgba(0, 0, 0, 0.6);
+
   --color-success: #16a34a;
   --color-warning: #d97706;
   --color-danger: #dc2626;
@@ -33,6 +35,37 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+@utility bg-main {
+  background-color: var(--color-bg-main);
+}
+@utility bg-secondary {
+  background-color: var(--color-bg-secondary);
+}
+@utility bg-tertiary {
+  background-color: var(--color-bg-tertiary);
+}
+@utility bg-inverse {
+  background-color: var(--color-bg-inverse);
+}
+@utility text-primary {
+  color: var(--color-text-primary);
+}
+@utility text-secondary {
+  color: var(--color-text-secondary);
+}
+@utility text-muted {
+  color: var(--color-text-muted);
+}
+@utility text-inverse {
+  color: var(--color-text-inverse);
+}
+@utility border-subtle {
+  border-color: var(--color-border-subtle);
+}
+@utility border-strong {
+  border-color: var(--color-border-strong);
 }
 
 @layer base {

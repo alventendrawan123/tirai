@@ -14,8 +14,17 @@ export interface EncodeTicketInput {
   createdAt?: number;
 }
 
+interface UtxoWithRuntimeSiblings extends Utxo {
+  leftSiblingCommitment?: bigint;
+}
+
+function bigintToHex64(value: bigint): string {
+  return value.toString(16).padStart(64, "0");
+}
+
 export function encodeClaimTicket(input: EncodeTicketInput): ClaimTicket {
   const createdAt = input.createdAt ?? Date.now();
+  const utxo = input.utxo as UtxoWithRuntimeSiblings;
 
   const envelope: ClaimTicketEnvelope = {
     v: 1,
@@ -26,6 +35,16 @@ export function encodeClaimTicket(input: EncodeTicketInput): ClaimTicket {
     u: bytesToBase64Url(serializeUtxo(input.utxo)),
     t: createdAt,
     ...(input.memo !== undefined ? { n: input.memo } : {}),
+    ...(typeof utxo.index === "number" ? { i: utxo.index } : {}),
+    ...(utxo.siblingCommitment !== undefined
+      ? { s: bigintToHex64(utxo.siblingCommitment) }
+      : {}),
+    ...(utxo.leftSiblingCommitment !== undefined
+      ? { ls: bigintToHex64(utxo.leftSiblingCommitment) }
+      : {}),
+    ...(utxo.commitment !== undefined
+      ? { cm: bigintToHex64(utxo.commitment) }
+      : {}),
   };
 
   const json = JSON.stringify(envelope);
