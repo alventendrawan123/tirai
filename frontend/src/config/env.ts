@@ -2,22 +2,39 @@ import { z } from "zod";
 
 const ClusterSchema = z.enum(["mainnet", "devnet", "localnet"]);
 
-const EnvSchema = z.object({
+const ClientEnvSchema = z.object({
   NEXT_PUBLIC_SOLANA_CLUSTER: ClusterSchema.default("devnet"),
-  NEXT_PUBLIC_SOLANA_RPC_URL: z.string().url(),
+  NEXT_PUBLIC_RPC_PROXY_PATH: z.string().min(1).default("/api/rpc"),
 });
 
-const parsed = EnvSchema.safeParse({
+const ServerEnvSchema = z.object({
+  SOLANA_RPC_URL: z.string().url(),
+});
+
+const clientParsed = ClientEnvSchema.safeParse({
   NEXT_PUBLIC_SOLANA_CLUSTER: process.env.NEXT_PUBLIC_SOLANA_CLUSTER,
-  NEXT_PUBLIC_SOLANA_RPC_URL: process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+  NEXT_PUBLIC_RPC_PROXY_PATH: process.env.NEXT_PUBLIC_RPC_PROXY_PATH,
 });
 
-if (!parsed.success) {
-  const formatted = parsed.error.issues
+if (!clientParsed.success) {
+  const formatted = clientParsed.error.issues
     .map((i) => `${i.path.join(".")}: ${i.message}`)
     .join("\n");
-  throw new Error(`Invalid environment variables:\n${formatted}`);
+  throw new Error(`Invalid client environment variables:\n${formatted}`);
 }
 
-export const env = parsed.data;
-export type Env = z.infer<typeof EnvSchema>;
+export const env = clientParsed.data;
+export type Env = z.infer<typeof ClientEnvSchema>;
+
+export function readServerEnv(): z.infer<typeof ServerEnvSchema> {
+  const parsed = ServerEnvSchema.safeParse({
+    SOLANA_RPC_URL: process.env.SOLANA_RPC_URL,
+  });
+  if (!parsed.success) {
+    const formatted = parsed.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("\n");
+    throw new Error(`Invalid server environment variables:\n${formatted}`);
+  }
+  return parsed.data;
+}
