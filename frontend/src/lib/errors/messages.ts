@@ -17,7 +17,7 @@ export function appErrorMessage(error: AppError): string {
         ? "Network is busy. Please retry in a moment."
         : "Network call failed.";
     case "PROOF_GENERATION_FAILED":
-      return "Privacy proof generation failed. Please retry.";
+      return "Privacy proof failed — the on-chain Merkle tree may not have indexed your deposit yet. Wait 30-60 seconds after the deposit confirms, then retry.";
     case "TICKET_DECODE_FAILED":
       return "This claim ticket is not in a recognised format.";
     case "VIEWING_KEY_INVALID":

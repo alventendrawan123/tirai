@@ -25,7 +25,16 @@ const NULLIFIER_PATTERNS = [
   "double spend",
 ];
 
-const PROOF_PATTERNS = ["proof generation", "groth16", "circuit"];
+const PROOF_PATTERNS = [
+  "proof generation",
+  "groth16",
+  "circuit",
+  "error in template",
+  "forceequalifenabled",
+  "transaction_222",
+  "witness",
+  "snarkjs",
+];
 
 const TICKET_PATTERNS = ["decode ticket", "ticket decode", "invalid ticket"];
 
