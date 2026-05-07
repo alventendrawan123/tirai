@@ -7,8 +7,14 @@ import {
   CardTitle,
   TxStatus,
 } from "@/components/ui";
+import type { MappedTiraiError } from "@/lib/errors";
 
-export function ClaimErrorCard() {
+export interface ClaimErrorCardProps {
+  error: MappedTiraiError;
+  onRetry: () => void;
+}
+
+export function ClaimErrorCard({ error, onRetry }: ClaimErrorCardProps) {
   return (
     <Card>
       <CardHeader>
@@ -19,12 +25,13 @@ export function ClaimErrorCard() {
       </CardHeader>
       <CardContent>
         <p className="text-secondary text-sm leading-relaxed">
-          The withdrawal could not be completed. The ticket has not been
-          consumed — you can safely retry.
+          {error.message}
         </p>
       </CardContent>
       <CardFooter className="justify-end">
-        <Button variant="primary">Retry</Button>
+        <Button variant="primary" onClick={onRetry}>
+          {error.retryable ? "Retry" : "Back"}
+        </Button>
       </CardFooter>
     </Card>
   );

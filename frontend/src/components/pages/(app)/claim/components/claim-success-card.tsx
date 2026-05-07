@@ -1,22 +1,31 @@
 import {
   AddressPill,
+  Button,
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-  CopyToClipboard,
   TokenAmount,
   TxStatus,
 } from "@/components/ui";
 import { solscanTxUrl } from "@/lib/web3";
-import type { ClaimSuccess } from "../types";
+import type { ClaimBountyResult, Cluster } from "@/types/api";
 
 export interface ClaimSuccessCardProps {
-  result: ClaimSuccess;
+  result: ClaimBountyResult;
+  expectedAmountLamports: bigint;
+  cluster: Cluster;
+  onReset: () => void;
 }
 
-export function ClaimSuccessCard({ result }: ClaimSuccessCardProps) {
+export function ClaimSuccessCard({
+  result,
+  expectedAmountLamports,
+  cluster,
+  onReset,
+}: ClaimSuccessCardProps) {
+  const explorerCluster = cluster === "mainnet" ? "mainnet" : "devnet";
   return (
     <Card>
       <CardHeader>
@@ -28,51 +37,40 @@ export function ClaimSuccessCard({ result }: ClaimSuccessCardProps) {
       <CardContent className="flex flex-col gap-6">
         <div>
           <p className="text-muted font-mono text-xs uppercase tracking-[0.18em]">
-            Received
+            Received (before fee)
           </p>
           <TokenAmount
-            raw={result.amountRaw}
-            decimals={result.decimals}
-            symbol={result.symbol}
+            raw={expectedAmountLamports}
+            decimals={9}
+            symbol="SOL"
             size="xl"
             className="mt-2"
           />
         </div>
         <div>
           <p className="text-muted font-mono text-xs uppercase tracking-[0.18em]">
-            Destination wallet
+            Destination wallet ({result.mode})
           </p>
           <div className="mt-2">
-            <AddressPill address={result.destination} cluster="devnet" />
+            <AddressPill
+              address={result.destination}
+              cluster={explorerCluster}
+            />
           </div>
         </div>
-        {result.mode === "fresh" && result.generatedSecret ? (
-          <div className="border-strong rounded-md border p-4">
-            <p className="text-primary text-sm font-medium">
-              Save your secret key
-            </p>
-            <p className="text-secondary mt-2 text-xs leading-relaxed">
-              This is the only copy. Without it, the funds are unrecoverable.
-              Tirai never stores it.
-            </p>
-            <div className="border-subtle bg-secondary mt-3 flex items-start gap-3 rounded-md border p-3">
-              <code className="text-primary flex-1 break-all font-mono text-[11px] leading-relaxed">
-                {result.generatedSecret}
-              </code>
-              <CopyToClipboard value={result.generatedSecret} label="Copy" />
-            </div>
-          </div>
-        ) : null}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a
-          href={solscanTxUrl(result.txSignature, "devnet")}
+          href={solscanTxUrl(result.signature, explorerCluster)}
           target="_blank"
           rel="noopener noreferrer"
           className="text-secondary hover:text-primary text-xs underline-offset-2 hover:underline"
         >
           View transaction on Solscan
         </a>
+        <Button variant="outline" size="sm" onClick={onReset}>
+          Claim another
+        </Button>
       </CardFooter>
     </Card>
   );

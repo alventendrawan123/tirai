@@ -59,6 +59,7 @@ export {
   type RoleCtaButtonProps,
   type RoleCtaIntent,
 } from "./role-cta-button";
+export { SaveKeyDialog, type SaveKeyDialogProps } from "./save-key-dialog";
 export {
   Section,
   SectionEyebrow,

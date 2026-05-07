@@ -72,6 +72,9 @@ importers:
       '@tirai/api':
         specifier: workspace:*
         version: link:../backend
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

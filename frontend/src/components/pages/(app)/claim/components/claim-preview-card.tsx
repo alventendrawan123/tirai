@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Badge,
   Button,
@@ -8,19 +10,39 @@ import {
   CardTitle,
   TokenAmount,
 } from "@/components/ui";
-import type { ClaimPreview } from "../types";
+import type { ClaimTicketPreview } from "@/types/api";
+import type { WalletMode } from "../types";
 
 export interface ClaimPreviewCardProps {
-  preview: ClaimPreview;
+  preview: ClaimTicketPreview;
+  mode: WalletMode;
+  onModeChange: (mode: WalletMode) => void;
+  walletConnected: boolean;
+  onClaim: () => void;
+  disabled?: boolean;
 }
 
-export function ClaimPreviewCard({ preview }: ClaimPreviewCardProps) {
+export function ClaimPreviewCard({
+  preview,
+  mode,
+  onModeChange,
+  walletConnected,
+  onClaim,
+  disabled,
+}: ClaimPreviewCardProps) {
+  const claimDisabled =
+    Boolean(disabled) ||
+    !preview.isClaimable ||
+    (mode === "existing" && !walletConnected);
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <CardTitle>Ticket preview</CardTitle>
-          <Badge variant="outline">Read-only</Badge>
+          <Badge variant={preview.isClaimable ? "outline" : "solid"}>
+            {preview.isClaimable ? "Claimable" : "Already claimed"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -29,9 +51,9 @@ export function ClaimPreviewCard({ preview }: ClaimPreviewCardProps) {
             You will receive
           </p>
           <TokenAmount
-            raw={preview.amountRaw}
-            decimals={preview.decimals}
-            symbol={preview.symbol}
+            raw={preview.amountLamports}
+            decimals={9}
+            symbol={preview.tokenMint ?? "SOL"}
             size="xl"
             className="mt-2"
           />
@@ -39,16 +61,20 @@ export function ClaimPreviewCard({ preview }: ClaimPreviewCardProps) {
         <dl className="border-subtle grid grid-cols-2 gap-px border bg-border-subtle">
           <div className="bg-main p-4">
             <dt className="text-muted font-mono text-[11px] uppercase tracking-[0.16em]">
-              Source
+              Label
             </dt>
-            <dd className="text-primary mt-2 text-sm">{preview.source}</dd>
+            <dd className="text-primary mt-2 text-sm">
+              {preview.label || "—"}
+            </dd>
           </div>
           <div className="bg-main p-4">
             <dt className="text-muted font-mono text-[11px] uppercase tracking-[0.16em]">
               Expiry
             </dt>
             <dd className="text-primary mt-2 text-sm">
-              {preview.expiry ?? "None"}
+              {preview.expiresAt
+                ? new Date(preview.expiresAt).toLocaleString()
+                : "None"}
             </dd>
           </div>
         </dl>
@@ -61,7 +87,8 @@ export function ClaimPreviewCard({ preview }: ClaimPreviewCardProps) {
               type="radio"
               name="wallet-mode"
               value="fresh"
-              defaultChecked
+              checked={mode === "fresh"}
+              onChange={() => onModeChange("fresh")}
               className="mt-1 accent-current"
             />
             <span>
@@ -79,6 +106,8 @@ export function ClaimPreviewCard({ preview }: ClaimPreviewCardProps) {
               type="radio"
               name="wallet-mode"
               value="existing"
+              checked={mode === "existing"}
+              onChange={() => onModeChange("existing")}
               className="mt-1 accent-current"
             />
             <span>
@@ -86,14 +115,17 @@ export function ClaimPreviewCard({ preview }: ClaimPreviewCardProps) {
                 Existing wallet
               </span>
               <span className="text-secondary mt-1 block text-xs leading-relaxed">
-                Funds land on your connected wallet. Less private.
+                Funds land on your connected wallet. Less private. Requires a
+                connected wallet adapter.
               </span>
             </span>
           </label>
         </fieldset>
       </CardContent>
       <CardFooter className="justify-end">
-        <Button variant="primary">Claim now</Button>
+        <Button variant="primary" onClick={onClaim} disabled={claimDisabled}>
+          {preview.isClaimable ? "Claim now" : "Already claimed"}
+        </Button>
       </CardFooter>
     </Card>
   );

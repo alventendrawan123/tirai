@@ -1,8 +1,6 @@
 export type {
   ClaimPageProps,
-  ClaimPageState,
-  ClaimPreview,
-  ClaimSuccess,
+  ClaimProgressStep,
   PageSearchParams,
   WalletMode,
 } from "./claim.types";
