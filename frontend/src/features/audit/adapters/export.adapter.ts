@@ -1,4 +1,5 @@
 import { exportAuditReport } from "@tirai/api";
+import { safeAdapter } from "@/lib/errors";
 import type {
   AppError,
   AuditExportFormat,
@@ -10,7 +11,7 @@ export async function exportAuditAdapter(
   history: AuditHistory,
   format: AuditExportFormat,
 ): Promise<Result<Blob, AppError>> {
-  return exportAuditReport(history, format);
+  return safeAdapter(() => exportAuditReport(history, format));
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {

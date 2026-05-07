@@ -27,6 +27,16 @@ export function ClaimErrorCard({ error, onRetry }: ClaimErrorCardProps) {
         <p className="text-secondary text-sm leading-relaxed">
           {error.message}
         </p>
+        {error.detail ? (
+          <details className="border-subtle mt-4 rounded-md border p-3">
+            <summary className="text-muted cursor-pointer font-mono text-[11px] uppercase tracking-[0.16em]">
+              Technical detail
+            </summary>
+            <pre className="text-secondary mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed">
+              {error.detail}
+            </pre>
+          </details>
+        ) : null}
       </CardContent>
       <CardFooter className="justify-end">
         <Button variant="primary" onClick={onRetry}>

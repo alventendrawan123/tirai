@@ -26,3 +26,20 @@ export function appErrorMessage(error: AppError): string {
       return "Something went wrong. Please retry.";
   }
 }
+
+export function appErrorDetail(error: AppError): string | undefined {
+  switch (error.kind) {
+    case "INVALID_INPUT":
+    case "PROOF_GENERATION_FAILED":
+    case "TICKET_DECODE_FAILED":
+    case "RPC":
+    case "UNKNOWN":
+      return error.message;
+    case "WRONG_CLUSTER":
+      return `expected ${error.expected}, got ${error.got}`;
+    case "INSUFFICIENT_BALANCE":
+      return `required ${error.required.toString()} lamports, available ${error.available.toString()}`;
+    default:
+      return undefined;
+  }
+}

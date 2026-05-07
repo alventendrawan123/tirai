@@ -39,7 +39,7 @@ export function CopyToClipboard({
       onClick={handleCopy}
       aria-label={`${label} ${value}`}
       className={cn(
-        "border-subtle bg-main hover:bg-secondary text-secondary",
+        "border-subtle bg-main hover:bg-secondary text-secondary cursor-pointer",
         "inline-flex items-center gap-1.5 rounded-md border font-mono",
         "transition-colors duration-(--duration-fast)",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-strong focus-visible:ring-offset-2 focus-visible:ring-offset-bg-main",

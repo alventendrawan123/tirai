@@ -1,6 +1,7 @@
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import type { Connection } from "@solana/web3.js";
 import { createBountyPayment } from "@tirai/api";
+import { safeAdapter } from "@/lib/errors";
 import type {
   AppError,
   BountyPaymentResult,
@@ -39,22 +40,24 @@ export async function payBountyAdapter(
       },
     };
   }
-
-  return createBountyPayment(
-    {
-      amountBaseUnits: BigInt(Math.floor(input.amountSol * LAMPORTS_PER_SOL)),
-      label: input.label,
-      ...(input.memo !== undefined ? { memo: input.memo } : {}),
-      ...(input.tokenMint !== undefined ? { tokenMint: input.tokenMint } : {}),
-    },
-    {
-      connection: ctx.connection,
-      payer: {
-        publicKey: ctx.wallet.publicKey,
-        signTransaction: ctx.wallet.signTransaction,
+  const publicKey = ctx.wallet.publicKey;
+  const signTransaction = ctx.wallet.signTransaction;
+  return safeAdapter(() =>
+    createBountyPayment(
+      {
+        amountBaseUnits: BigInt(Math.floor(input.amountSol * LAMPORTS_PER_SOL)),
+        label: input.label,
+        ...(input.memo !== undefined ? { memo: input.memo } : {}),
+        ...(input.tokenMint !== undefined
+          ? { tokenMint: input.tokenMint }
+          : {}),
       },
-      cluster: ctx.cluster,
-      ...(ctx.onProgress !== undefined ? { onProgress: ctx.onProgress } : {}),
-    },
+      {
+        connection: ctx.connection,
+        payer: { publicKey, signTransaction },
+        cluster: ctx.cluster,
+        ...(ctx.onProgress !== undefined ? { onProgress: ctx.onProgress } : {}),
+      },
+    ),
   );
 }

@@ -1,5 +1,6 @@
 import type { Connection } from "@solana/web3.js";
 import { inspectClaimTicket } from "@tirai/api";
+import { safeAdapter } from "@/lib/errors";
 import type {
   AppError,
   ClaimTicketPreview,
@@ -11,5 +12,5 @@ export async function inspectTicketAdapter(
   ticketRaw: string,
   ctx: { connection: Connection; cluster: Cluster },
 ): Promise<Result<ClaimTicketPreview, AppError>> {
-  return inspectClaimTicket(ticketRaw, ctx);
+  return safeAdapter(() => inspectClaimTicket(ticketRaw, ctx));
 }
