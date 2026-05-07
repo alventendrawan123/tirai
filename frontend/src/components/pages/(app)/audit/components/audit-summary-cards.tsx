@@ -1,5 +1,5 @@
 import { Card, CardContent, TokenAmount } from "@/components/ui";
-import type { AuditSummary } from "../types";
+import type { AuditSummary } from "@/types/api";
 
 export interface AuditSummaryCardsProps {
   summary: AuditSummary;
@@ -24,9 +24,9 @@ export function AuditSummaryCards({ summary }: AuditSummaryCardsProps) {
             Total volume
           </p>
           <TokenAmount
-            raw={summary.totalVolumeRaw}
-            decimals={summary.totalVolumeDecimals}
-            symbol={summary.totalVolumeSymbol}
+            raw={summary.totalVolumeLamports}
+            decimals={9}
+            symbol="SOL"
             size="lg"
           />
         </CardContent>
@@ -37,7 +37,9 @@ export function AuditSummaryCards({ summary }: AuditSummaryCardsProps) {
             Latest activity
           </p>
           <p className="text-primary font-mono text-2xl font-medium tracking-tight">
-            {summary.latestActivity}
+            {summary.latestActivityAt
+              ? new Date(summary.latestActivityAt).toLocaleString()
+              : "—"}
           </p>
         </CardContent>
       </Card>

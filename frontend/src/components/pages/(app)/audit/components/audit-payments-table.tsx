@@ -6,32 +6,40 @@ import {
   CardTitle,
   TokenAmount,
 } from "@/components/ui";
-import { assertNever } from "@/lib/utils";
 import { formatAddress, solscanTxUrl } from "@/lib/web3";
-import type { AuditPayment, PaymentStatus } from "../types";
+import type { AuditEntry, Cluster } from "@/types/api";
+
+type AuditStatus = AuditEntry["status"];
+
+const STATUS_LABEL: Record<AuditStatus, string> = {
+  deposited: "Deposited",
+  claimed: "Claimed",
+  expired: "Expired",
+};
+
+const STATUS_VARIANT: Record<
+  AuditStatus,
+  "outline" | "solid" | "success" | "info" | "danger"
+> = {
+  deposited: "info",
+  claimed: "success",
+  expired: "outline",
+};
 
 export interface AuditPaymentsTableProps {
-  payments: ReadonlyArray<AuditPayment>;
+  entries: ReadonlyArray<AuditEntry>;
+  cluster: Cluster;
 }
 
-function statusBadge(status: PaymentStatus) {
-  switch (status) {
-    case "confirmed":
-      return <Badge variant="success">Confirmed</Badge>;
-    case "pending":
-      return <Badge variant="info">Pending</Badge>;
-    case "failed":
-      return <Badge variant="danger">Failed</Badge>;
-    default:
-      return assertNever(status);
-  }
-}
-
-export function AuditPaymentsTable({ payments }: AuditPaymentsTableProps) {
+export function AuditPaymentsTable({
+  entries,
+  cluster,
+}: AuditPaymentsTableProps) {
+  const explorerCluster = cluster === "mainnet" ? "mainnet" : "devnet";
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Payments</CardTitle>
+        <CardTitle>Payments ({entries.length})</CardTitle>
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
@@ -40,34 +48,46 @@ export function AuditPaymentsTable({ payments }: AuditPaymentsTableProps) {
               <tr className="text-muted font-mono text-[11px] uppercase tracking-[0.16em]">
                 <th className="px-6 py-3 font-normal">Date</th>
                 <th className="px-6 py-3 font-normal">Amount</th>
+                <th className="px-6 py-3 font-normal">Token</th>
                 <th className="px-6 py-3 font-normal">Label</th>
                 <th className="px-6 py-3 font-normal">Status</th>
                 <th className="px-6 py-3 font-normal">Tx</th>
               </tr>
             </thead>
             <tbody className="divide-border-subtle divide-y">
-              {payments.map((p) => (
-                <tr key={p.id}>
+              {entries.map((entry) => (
+                <tr key={entry.signature}>
                   <td className="text-secondary px-6 py-4 font-mono text-xs">
-                    {p.date}
+                    {new Date(entry.timestamp).toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
                     <TokenAmount
-                      raw={p.amountRaw}
-                      decimals={p.decimals}
-                      symbol={p.symbol}
+                      raw={entry.amountLamports}
+                      decimals={9}
+                      symbol="SOL"
                     />
                   </td>
-                  <td className="text-primary px-6 py-4">{p.label}</td>
-                  <td className="px-6 py-4">{statusBadge(p.status)}</td>
+                  <td className="text-secondary px-6 py-4 font-mono text-xs">
+                    {entry.tokenMint
+                      ? formatAddress(entry.tokenMint, { head: 4, tail: 4 })
+                      : "SOL"}
+                  </td>
+                  <td className="text-primary px-6 py-4">
+                    {entry.label && entry.label.length > 0 ? entry.label : "—"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge variant={STATUS_VARIANT[entry.status]}>
+                      {STATUS_LABEL[entry.status]}
+                    </Badge>
+                  </td>
                   <td className="px-6 py-4">
                     <a
-                      href={solscanTxUrl(p.txSignature, "devnet")}
+                      href={solscanTxUrl(entry.signature, explorerCluster)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-secondary hover:text-primary font-mono text-xs underline-offset-2 hover:underline"
                     >
-                      {formatAddress(p.txSignature, { head: 6, tail: 4 })}
+                      {formatAddress(entry.signature, { head: 6, tail: 4 })}
                     </a>
                   </td>
                 </tr>
