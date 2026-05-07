@@ -7,8 +7,14 @@ import {
   CardTitle,
   TxStatus,
 } from "@/components/ui";
+import type { MappedTiraiError } from "@/lib/errors";
 
-export function PayErrorCard() {
+export interface PayErrorCardProps {
+  error: MappedTiraiError;
+  onRetry: () => void;
+}
+
+export function PayErrorCard({ error, onRetry }: PayErrorCardProps) {
   return (
     <Card>
       <CardHeader>
@@ -19,12 +25,18 @@ export function PayErrorCard() {
       </CardHeader>
       <CardContent>
         <p className="text-secondary text-sm leading-relaxed">
-          The transaction was rejected before reaching the network. No funds
-          have moved. You can safely retry — your wallet was not charged.
+          {error.message}
         </p>
+        {error.field ? (
+          <p className="text-muted mt-2 font-mono text-xs">
+            Field: {error.field}
+          </p>
+        ) : null}
       </CardContent>
       <CardFooter className="justify-end">
-        <Button variant="primary">Retry</Button>
+        <Button variant="primary" onClick={onRetry}>
+          {error.retryable ? "Retry" : "Back to form"}
+        </Button>
       </CardFooter>
     </Card>
   );

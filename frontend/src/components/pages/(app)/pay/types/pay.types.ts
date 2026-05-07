@@ -1,4 +1,4 @@
-export type PayPageState = "idle" | "submitting" | "success" | "error";
+import type { ProgressStep } from "@/types/api";
 
 export type PageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -6,11 +6,17 @@ export interface PayPageProps {
   searchParams?: PageSearchParams;
 }
 
-export interface PaySuccessTicket {
-  ticket: string;
-  amountRaw: bigint;
-  decimals: number;
-  symbol: string;
+export interface PayFormValues {
+  amountSol: string;
   label: string;
-  txSignature: string;
+  memo: string;
 }
+
+export interface PayFormErrors {
+  amountSol?: string;
+  label?: string;
+  memo?: string;
+  wallet?: string;
+}
+
+export type PayProgressStep = ProgressStep;

@@ -1,6 +1,7 @@
 export type {
   PageSearchParams,
+  PayFormErrors,
+  PayFormValues,
   PayPageProps,
-  PayPageState,
-  PaySuccessTicket,
+  PayProgressStep,
 } from "./pay.types";
