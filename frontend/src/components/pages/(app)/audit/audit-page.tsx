@@ -117,6 +117,11 @@ function renderResult({ scan, cluster, hasSubmitted }: RenderArgs) {
     }
     return (
       <div className="flex flex-col gap-6">
+        {scan.isFetching ? (
+          <div className="text-muted text-xs uppercase tracking-[0.18em]">
+            Refreshing in background…
+          </div>
+        ) : null}
         <AuditSummaryCards summary={scan.data.value.summary} />
         <AuditPaymentsTable
           entries={scan.data.value.entries}

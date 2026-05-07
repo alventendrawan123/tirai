@@ -43,6 +43,7 @@ export interface AuditSummary {
 export interface AuditHistory {
   entries: ReadonlyArray<AuditEntry>;
   summary: AuditSummary;
+  lastSignature?: string;
 }
 
 const VIEWING_KEY_HEX_LENGTH = 64;
@@ -118,7 +119,7 @@ export async function scanAuditHistory(
       ...(ctx.untilSignature !== undefined
         ? { untilSignature: ctx.untilSignature }
         : {}),
-      batchSize: ctx.batchSize ?? 3,
+      batchSize: ctx.batchSize ?? 50,
     });
   } catch (error) {
     return err(parseSdkError(error));
@@ -133,5 +134,8 @@ export async function scanAuditHistory(
   return ok({
     entries,
     summary: summarize(entries),
+    ...(scanResult.lastSignature !== undefined
+      ? { lastSignature: scanResult.lastSignature }
+      : {}),
   });
 }

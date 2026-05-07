@@ -47,6 +47,8 @@ export function defaultRpcFor(cluster: Cluster): string {
 }
 
 export function resolveBrowserRpcEndpoint(proxyPath: string): string {
+  const direct = env.NEXT_PUBLIC_SOLANA_RPC_URL;
+  if (direct && direct.length > 0) return direct;
   if (typeof window === "undefined") return proxyPath;
   if (proxyPath.startsWith("http")) return proxyPath;
   return new URL(proxyPath, window.location.origin).toString();

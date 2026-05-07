@@ -37,8 +37,11 @@ export function appErrorDetail(error: AppError): string | undefined {
       return error.message;
     case "WRONG_CLUSTER":
       return `expected ${error.expected}, got ${error.got}`;
-    case "INSUFFICIENT_BALANCE":
-      return `required ${error.required.toString()} lamports, available ${error.available.toString()}`;
+    case "INSUFFICIENT_BALANCE": {
+      const requiredSol = Number(error.required) / 1e9;
+      const availableSol = Number(error.available) / 1e9;
+      return `required ${requiredSol.toFixed(6)} SOL, available ${availableSol.toFixed(6)} SOL`;
+    }
     default:
       return undefined;
   }

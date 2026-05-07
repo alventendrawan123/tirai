@@ -33,7 +33,23 @@ export function WalletProvider({ children }: WalletProviderProps) {
   );
 
   const connectionConfig = useMemo(
-    () => ({ commitment: "confirmed" as const, wsEndpoint }),
+    () => ({
+      commitment: "confirmed" as const,
+      wsEndpoint,
+      disableRetryOnRateLimit: true,
+      fetchMiddleware: (
+        info: Parameters<typeof fetch>[0],
+        init: Parameters<typeof fetch>[1],
+        next: (
+          info: Parameters<typeof fetch>[0],
+          init: Parameters<typeof fetch>[1],
+        ) => void,
+      ) => {
+        const ac = new AbortController();
+        window.setTimeout(() => ac.abort(), 12_000);
+        next(info, { ...(init ?? {}), signal: ac.signal });
+      },
+    }),
     [wsEndpoint],
   );
 

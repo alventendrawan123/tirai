@@ -7,6 +7,7 @@ import type { AppError, AuditHistory, Cluster, Result } from "@/types/api";
 export interface ScanAuditAdapterContext {
   connection: Connection;
   cluster: Cluster;
+  untilSignature?: string;
 }
 
 export async function scanAuditAdapter(
@@ -14,5 +15,16 @@ export async function scanAuditAdapter(
   ctx: ScanAuditAdapterContext,
 ): Promise<Result<AuditHistory, AppError>> {
   ensureBufferPolyfill();
-  return safeAdapter(() => scanAuditHistory({ viewingKey }, ctx));
+  return safeAdapter(() =>
+    scanAuditHistory(
+      { viewingKey },
+      {
+        connection: ctx.connection,
+        cluster: ctx.cluster,
+        ...(ctx.untilSignature !== undefined
+          ? { untilSignature: ctx.untilSignature }
+          : {}),
+      },
+    ),
+  );
 }

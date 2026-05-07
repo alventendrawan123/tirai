@@ -67,6 +67,29 @@ export async function createBountyPayment(
     }
   }
 
+  if (mint.equals(NATIVE_SOL_MINT)) {
+    try {
+      ctx.onProgress?.("validate");
+      const balance = BigInt(
+        await ctx.connection.getBalance(ctx.payer.publicKey),
+      );
+      const networkFeeBuffer = 5_000n;
+      const required = input.amountBaseUnits + networkFeeBuffer;
+      if (balance < required) {
+        return err({
+          kind: "INSUFFICIENT_BALANCE",
+          required,
+          available: balance,
+        });
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        return err({ kind: "RPC", message: error.message, retryable: true });
+      }
+      return err({ kind: "RPC", message: String(error), retryable: true });
+    }
+  }
+
   try {
     ctx.onProgress?.("validate");
 

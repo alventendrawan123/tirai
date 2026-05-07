@@ -62,6 +62,49 @@ function rejectMethod(id: number | string, method: string) {
   );
 }
 
+const MAX_CONCURRENCY = Number(process.env.RPC_PROXY_CONCURRENCY ?? 16);
+const UPSTREAM_TIMEOUT_MS = 8_000;
+
+let inFlight = 0;
+const slotWaiters: Array<() => void> = [];
+
+async function acquireSlot(): Promise<void> {
+  if (inFlight < MAX_CONCURRENCY) {
+    inFlight++;
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    slotWaiters.push(resolve);
+  });
+}
+
+function releaseSlot(): void {
+  const next = slotWaiters.shift();
+  if (next) {
+    next();
+    return;
+  }
+  inFlight--;
+}
+
+async function forwardOnce(url: string, body: unknown): Promise<Response> {
+  await acquireSlot();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+    releaseSlot();
+  }
+}
+
 export async function POST(request: Request) {
   const { SOLANA_RPC_URL } = readServerEnv();
 
@@ -88,13 +131,23 @@ export async function POST(request: Request) {
     }
   }
 
-  const upstream = await fetch(SOLANA_RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-
+  let upstream: Response;
+  try {
+    upstream = await forwardOnce(SOLANA_RPC_URL, body);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: requests[0]?.id ?? null,
+        error: {
+          code: -32000,
+          message: `Upstream request failed: ${message}`,
+        },
+      },
+      { status: 502 },
+    );
+  }
   const text = await upstream.text();
   return new NextResponse(text, {
     status: upstream.status,
