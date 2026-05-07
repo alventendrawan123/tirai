@@ -5,10 +5,12 @@ import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
 } from "@solana/wallet-adapter-react";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { resolveBrowserRpcEndpoint } from "@/config";
 import { useCluster } from "./cluster-provider";
+import "@solana/wallet-adapter-react-ui/styles.css";
 
 export interface WalletProviderProps {
   children: ReactNode;
@@ -33,7 +35,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   return (
     <ConnectionProvider endpoint={endpoint}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
-        {children}
+        <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>
     </ConnectionProvider>
   );

@@ -79,7 +79,3 @@ export { TiltedCard, type TiltedCardProps } from "./tilted-card";
 export { TokenAmount, type TokenAmountProps } from "./token-amount";
 export { TxStatus, type TxStatusKind, type TxStatusProps } from "./tx-status";
 export { WalletButton, type WalletButtonProps } from "./wallet-button";
-export {
-  WalletConnectSheet,
-  type WalletConnectSheetProps,
-} from "./wallet-connect-sheet";

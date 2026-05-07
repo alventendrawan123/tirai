@@ -1,10 +1,9 @@
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useState } from "react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { AddressPill } from "./address-pill";
 import { Button } from "./button";
-import { WalletConnectSheet } from "./wallet-connect-sheet";
 
 export interface WalletButtonProps {
   address?: string;
@@ -20,7 +19,7 @@ export function WalletButton({
   onDisconnect,
 }: WalletButtonProps) {
   const { publicKey, connected, connecting, disconnect } = useWallet();
-  const [open, setOpen] = useState(false);
+  const { setVisible } = useWalletModal();
 
   const liveAddress = publicKey?.toBase58();
   const address = addressProp ?? liveAddress;
@@ -30,7 +29,7 @@ export function WalletButton({
       onConnect();
       return;
     }
-    setOpen(true);
+    setVisible(true);
   };
 
   const handleDisconnect = async () => {
@@ -43,17 +42,14 @@ export function WalletButton({
 
   if (!address) {
     return (
-      <>
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={handleConnect}
-          disabled={connecting}
-        >
-          {connecting ? "Connecting…" : "Connect wallet"}
-        </Button>
-        <WalletConnectSheet open={open} onOpenChange={setOpen} />
-      </>
+      <Button
+        size="sm"
+        variant="primary"
+        onClick={handleConnect}
+        disabled={connecting}
+      >
+        {connecting ? "Connecting…" : "Select wallet"}
+      </Button>
     );
   }
 
