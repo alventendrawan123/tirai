@@ -8,10 +8,34 @@ export {
   scanAuditHistory,
 } from "./audit";
 export {
+  requestAuthChallenge,
+  verifyAuthChallenge,
+} from "./auth";
+export {
+  type Application,
+  type ApplicationStatus,
+  type ApplyInput,
+  type AuthChallenge,
+  type AuthContext,
+  type AuthSession,
+  applyToBounty,
+  type Bounty,
   type BountyContext,
+  type BountyManageContext,
   type BountyPaymentResult,
+  type BountyReadContext,
+  type BountyStatus,
+  type CreateBountyInput,
   type CreateBountyPaymentInput,
+  createBounty,
   createBountyPayment,
+  getBountyById,
+  type ListBountiesFilter,
+  listApplications,
+  listBounties,
+  updateApplicationStatus,
+  updateBountyStatus,
+  type VerifyAuthInput,
 } from "./bounty";
 export {
   type ClaimBountyInput,

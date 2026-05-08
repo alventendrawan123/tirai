@@ -1,11 +1,13 @@
 import { CLOAK_PROGRAM_ID } from "@cloak.dev/sdk-devnet";
 import { Connection, PublicKey } from "@solana/web3.js";
+import { startAuthServer } from "./auth-server";
 import { createSupabaseClient } from "./db";
 import { startPollLoop } from "./poller";
 
 const DEFAULT_PROGRAM_ID = "Zc1kHfp4rajSMeASFDwFFgkHRjv7dFQuLheJoQus27h"; // devnet
 const DEFAULT_POLL_INTERVAL_MS = 30_000;
 const DEFAULT_BATCH_SIZE = 10;
+const DEFAULT_AUTH_PORT = 3001;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -44,6 +46,19 @@ async function main(): Promise<void> {
   console.log(`Batch size:  ${batchSize}`);
   console.log(`SDK default: ${CLOAK_PROGRAM_ID.toBase58()}`);
   console.log();
+
+  // Start auth server (HTTP, port from PORT env or default).
+  // Skip if SUPABASE_JWT_SECRET not set (auth disabled, indexer-only mode).
+  const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+  if (jwtSecret) {
+    const authPort = Number.parseInt(
+      process.env.PORT ?? `${DEFAULT_AUTH_PORT}`,
+      10,
+    );
+    startAuthServer({ port: authPort, jwtSecret });
+  } else {
+    console.log("[auth-server] SUPABASE_JWT_SECRET not set — auth disabled");
+  }
 
   await startPollLoop({
     connection,
