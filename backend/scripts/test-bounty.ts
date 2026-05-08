@@ -54,7 +54,9 @@ async function signInWith(
 ): Promise<{ jwt: string; walletPubkey: string }> {
   const challengeResult = await requestAuthChallenge({ authVerifierUrl });
   if (!challengeResult.ok) {
-    throw new Error(`requestAuthChallenge failed: ${JSON.stringify(challengeResult.error)}`);
+    throw new Error(
+      `requestAuthChallenge failed: ${JSON.stringify(challengeResult.error)}`,
+    );
   }
   const { challenge } = challengeResult.value;
 
@@ -71,7 +73,9 @@ async function signInWith(
     { authVerifierUrl },
   );
   if (!verifyResult.ok) {
-    throw new Error(`verifyAuthChallenge failed: ${JSON.stringify(verifyResult.error)}`);
+    throw new Error(
+      `verifyAuthChallenge failed: ${JSON.stringify(verifyResult.error)}`,
+    );
   }
   return {
     jwt: verifyResult.value.jwt,
@@ -99,7 +103,11 @@ async function main(): Promise<void> {
   const applicantKp = Keypair.generate();
 
   console.log("Owner pubkey:     ", ownerKp.publicKey.toBase58());
-  console.log("Applicant pubkey: ", applicantKp.publicKey.toBase58(), "(fresh keypair)");
+  console.log(
+    "Applicant pubkey: ",
+    applicantKp.publicKey.toBase58(),
+    "(fresh keypair)",
+  );
   console.log();
 
   // ====================================================================
@@ -111,7 +119,10 @@ async function main(): Promise<void> {
   console.log();
 
   const readCtx = { supabaseUrl, supabaseAnonKey };
-  const ownerCtx = { supabaseUrl, jwt: ownerSession.jwt };
+  const ownerCtx = {
+    authVerifierUrl,
+    jwt: ownerSession.jwt,
+  };
 
   // ====================================================================
   // 2. Create bounty
@@ -154,7 +165,9 @@ async function main(): Promise<void> {
     console.error("   ❌ Bounty not found in listBounties result");
     process.exit(1);
   }
-  console.log(`   ✅ Listed ${listResult.value.length} bounties — ours found at top`);
+  console.log(
+    `   ✅ Listed ${listResult.value.length} bounties — ours found at top`,
+  );
   console.log();
 
   // ====================================================================
@@ -166,7 +179,9 @@ async function main(): Promise<void> {
     console.error("   ❌ getBountyById FAILED:", getResult);
     process.exit(1);
   }
-  console.log(`   ✅ Got bounty — title matches: ${getResult.value.title === bounty.title}`);
+  console.log(
+    `   ✅ Got bounty — title matches: ${getResult.value.title === bounty.title}`,
+  );
   console.log();
 
   // ====================================================================
@@ -174,10 +189,15 @@ async function main(): Promise<void> {
   // ====================================================================
   console.log("🔐 STEP 5: Applicant sign-in (fresh wallet)");
   const applicantSession = await signInWith(applicantKp, authVerifierUrl);
-  console.log(`   ✅ Applicant JWT obtained (sub matches: ${applicantSession.walletPubkey === applicantKp.publicKey.toBase58()})`);
+  console.log(
+    `   ✅ Applicant JWT obtained (sub matches: ${applicantSession.walletPubkey === applicantKp.publicKey.toBase58()})`,
+  );
   console.log();
 
-  const applicantCtx = { supabaseUrl, jwt: applicantSession.jwt };
+  const applicantCtx = {
+    authVerifierUrl,
+    jwt: applicantSession.jwt,
+  };
 
   // ====================================================================
   // 6. Apply to bounty
@@ -216,7 +236,9 @@ async function main(): Promise<void> {
     console.error("   ❌ Application not found in listApplications result");
     process.exit(1);
   }
-  console.log(`   ✅ Listed ${appsResult.value.length} applications — ours found`);
+  console.log(
+    `   ✅ Listed ${appsResult.value.length} applications — ours found`,
+  );
   console.log();
 
   // ====================================================================
@@ -264,16 +286,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   if (finalResult.value.status !== "paid") {
-    console.error(`   ❌ Status mismatch: expected 'paid', got '${finalResult.value.status}'`);
+    console.error(
+      `   ❌ Status mismatch: expected 'paid', got '${finalResult.value.status}'`,
+    );
     process.exit(1);
   }
-  console.log(`   ✅ Final state: status=${finalResult.value.status}, paymentSignature=${finalResult.value.paymentSignature}`);
+  console.log(
+    `   ✅ Final state: status=${finalResult.value.status}, paymentSignature=${finalResult.value.paymentSignature}`,
+  );
   console.log();
 
   // ====================================================================
   // RLS check: applicant cannot update other people's bounty
   // ====================================================================
-  console.log("🔒 STEP 11: RLS check — applicant CANNOT update bounty (should fail)");
+  console.log(
+    "🔒 STEP 11: RLS check — applicant CANNOT update bounty (should fail)",
+  );
   const sneakyResult = await updateBountyStatus(
     bounty.id,
     "cancelled",
@@ -281,10 +309,14 @@ async function main(): Promise<void> {
     applicantCtx,
   );
   if (sneakyResult.ok) {
-    console.error("   ❌ RLS BREACH: applicant successfully updated bounty owned by someone else!");
+    console.error(
+      "   ❌ RLS BREACH: applicant successfully updated bounty owned by someone else!",
+    );
     process.exit(1);
   }
-  console.log(`   ✅ RLS rejected applicant update (error: ${sneakyResult.error.kind})`);
+  console.log(
+    `   ✅ RLS rejected applicant update (error: ${sneakyResult.error.kind})`,
+  );
   console.log();
 
   // ====================================================================
@@ -296,7 +328,9 @@ async function main(): Promise<void> {
   console.log();
   console.log(`Test bounty id:       ${bounty.id}`);
   console.log(`Test application id:  ${application.id}`);
-  console.log("(Test data left in Supabase — cleanup manually via SQL if needed.)");
+  console.log(
+    "(Test data left in Supabase — cleanup manually via SQL if needed.)",
+  );
 }
 
 main().catch((error) => {

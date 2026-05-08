@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { err, ok } from "../lib/result";
 import type { Result } from "../types/api";
 import type { AppError } from "../types/errors";
 import { type BountyRow, rowToBounty } from "./bounty-row";
+import { callAuthServer } from "./http-client";
 import type { Bounty, BountyManageContext, BountyStatus } from "./types";
 
 export async function updateBountyStatus(
@@ -19,32 +19,17 @@ export async function updateBountyStatus(
     });
   }
 
-  const supabase = createClient(ctx.supabaseUrl, ctx.jwt, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${ctx.jwt}` } },
-  });
-
-  const update: Record<string, string> = { status };
+  const body: Record<string, unknown> = { status };
   if (paymentSignature !== undefined) {
-    update.payment_signature = paymentSignature;
+    body.paymentSignature = paymentSignature;
   }
 
-  const { data, error } = await supabase
-    .from("bounties")
-    .update(update)
-    .eq("id", id)
-    .select(
-      "id, title, description, reward_lamports, deadline, eligibility, owner_wallet, status, payment_signature, created_at, updated_at",
-    )
-    .single();
-
-  if (error) {
-    return err({
-      kind: "RPC",
-      message: `Supabase update failed: ${error.message}`,
-      retryable: false,
-    });
-  }
-
-  return ok(rowToBounty(data as BountyRow));
+  const result = await callAuthServer<BountyRow>({
+    method: "PATCH",
+    url: `${ctx.authVerifierUrl}/bounties/${id}`,
+    jwt: ctx.jwt,
+    body,
+  });
+  if (!result.ok) return result;
+  return ok(rowToBounty(result.value));
 }

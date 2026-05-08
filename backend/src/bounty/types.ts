@@ -65,7 +65,7 @@ export interface AuthSession {
 }
 
 export interface BountyManageContext {
-  supabaseUrl: string;
+  authVerifierUrl: string;
   jwt: string;
 }
 

@@ -1,9 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
-import { extractJwtSub } from "../auth/jwt";
 import { err, ok } from "../lib/result";
 import type { Result } from "../types/api";
 import type { AppError } from "../types/errors";
 import { type BountyRow, rowToBounty } from "./bounty-row";
+import { callAuthServer } from "./http-client";
 import type { Bounty, BountyManageContext, CreateBountyInput } from "./types";
 
 export async function createBounty(
@@ -39,42 +38,20 @@ export async function createBounty(
     });
   }
 
-  const supabase = createClient(ctx.supabaseUrl, ctx.jwt, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${ctx.jwt}` } },
-  });
-
-  const ownerWallet = extractJwtSub(ctx.jwt);
-  if (ownerWallet === null) {
-    return err({
-      kind: "INVALID_INPUT",
-      field: "jwt",
-      message: "JWT does not contain wallet pubkey (sub claim)",
-    });
-  }
-
-  const { data, error } = await supabase
-    .from("bounties")
-    .insert({
+  const result = await callAuthServer<BountyRow>({
+    method: "POST",
+    url: `${ctx.authVerifierUrl}/bounties`,
+    jwt: ctx.jwt,
+    body: {
       title: input.title,
       description: input.description,
-      reward_lamports: input.rewardLamports.toString(),
-      deadline: new Date(input.deadline).toISOString(),
+      rewardLamports: input.rewardLamports.toString(),
+      deadline: input.deadline,
       ...(input.eligibility !== undefined
         ? { eligibility: input.eligibility }
         : {}),
-      owner_wallet: ownerWallet,
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    return err({
-      kind: "RPC",
-      message: `Supabase insert failed: ${error.message}`,
-      retryable: false,
-    });
-  }
-
-  return ok(rowToBounty(data as BountyRow));
+    },
+  });
+  if (!result.ok) return result;
+  return ok(rowToBounty(result.value));
 }

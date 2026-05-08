@@ -55,7 +55,12 @@ async function main(): Promise<void> {
       process.env.PORT ?? `${DEFAULT_AUTH_PORT}`,
       10,
     );
-    startAuthServer({ port: authPort, jwtSecret });
+    startAuthServer({
+      port: authPort,
+      jwtSecret,
+      supabaseUrl,
+      supabaseServiceKey,
+    });
   } else {
     console.log("[auth-server] SUPABASE_JWT_SECRET not set — auth disabled");
   }
