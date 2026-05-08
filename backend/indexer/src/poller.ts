@@ -174,24 +174,45 @@ export async function pollOnce(opts: PollerOptions): Promise<PollResult> {
   const cursor = await readCursor(supabase);
   const untilSig = cursor.last_signature ?? undefined;
 
+  // FIRST-RUN OPTIMIZATION: if cursor is null, skip historical backfill.
+  // Set cursor to the latest signature so subsequent polls only catch NEW
+  // transactions. Demo use case doesn't need historical data; backfill
+  // from genesis would take 5-30 minutes on devnet (thousands of tx).
+  if (!untilSig) {
+    console.log("[indexer] first run detected — initializing cursor to latest signature (skipping historical backfill)");
+    const initialPage = await connection.getSignaturesForAddress(programId, {
+      limit: 1,
+    });
+    const latest = initialPage[0];
+    if (latest && latest.blockTime != null) {
+      await writeCursor(supabase, {
+        lastSignature: latest.signature,
+        lastSlot: latest.slot,
+        lastBlockTime: new Date(latest.blockTime * 1000).toISOString(),
+      });
+      console.log(`[indexer] cursor initialized at ${latest.signature.slice(0, 16)}…`);
+      return { scannedSignatures: 0, insertedRows: 0, newCursor: latest.signature };
+    }
+    console.log("[indexer] no signatures yet on program — waiting next cycle");
+    return { scannedSignatures: 0, insertedRows: 0, newCursor: null };
+  }
+
   const sigInfos: ConfirmedSignatureInfo[] = [];
   let beforeSig: string | undefined;
   let reachedCursor = false;
 
   while (!reachedCursor) {
     const page = await connection.getSignaturesForAddress(programId, {
-      before: beforeSig,
+      ...(beforeSig !== undefined ? { before: beforeSig } : {}),
       limit: SIGNATURE_PAGE_SIZE,
     });
     if (page.length === 0) break;
 
-    if (untilSig) {
-      const idx = page.findIndex((s) => s.signature === untilSig);
-      if (idx >= 0) {
-        sigInfos.push(...page.slice(0, idx));
-        reachedCursor = true;
-        break;
-      }
+    const idx = page.findIndex((s) => s.signature === untilSig);
+    if (idx >= 0) {
+      sigInfos.push(...page.slice(0, idx));
+      reachedCursor = true;
+      break;
     }
 
     sigInfos.push(...page);
