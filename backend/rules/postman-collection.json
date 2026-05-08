@@ -1,0 +1,280 @@
+{
+  "info": {
+    "name": "Tirai Backend API",
+    "description": "REST endpoints untuk Tirai backend:\n- Auth (Railway auth-server)\n- Bounty CRUD (Railway auth-server, auth required)\n- Read (Supabase REST, anon key)\n\nIMPORT INSTRUCTIONS:\n1. File → Import → drag this JSON\n2. Click env dropdown (top right) → 'Tirai Devnet' (auto-created)\n3. Edit env values: paste your JWT after running test:bounty-flow once\n\nFor write endpoints (POST/PATCH bounties + applications), wallet signing\nflow can't be done in Postman alone (needs Solana ed25519 sign). Workflow:\n1. Run `pnpm -F @tirai/api test:bounty-flow` once\n2. Copy JWT from script output (or modify script to print)\n3. Paste into env var TIRAI_JWT\n4. Use Authorization tab Bearer Token in any auth-required request",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "AUTH_URL",
+      "value": "https://tirai-production.up.railway.app",
+      "description": "Railway auth-server URL"
+    },
+    {
+      "key": "SUPABASE_URL",
+      "value": "https://ahyezijhqlizwznhgnzh.supabase.co",
+      "description": "Supabase project URL"
+    },
+    {
+      "key": "SUPABASE_ANON_KEY",
+      "value": "sb_publishable_m986Yk1Qy86Zf2om4vD84g_wV0RNNOG",
+      "description": "Public anon key, safe to expose"
+    },
+    {
+      "key": "TIRAI_JWT",
+      "value": "<paste-jwt-from-test-bounty-flow-output>",
+      "description": "Session JWT from /auth/verify (1 hour TTL). Get via test:bounty-flow script."
+    },
+    {
+      "key": "BOUNTY_ID",
+      "value": "<paste-bounty-uuid>",
+      "description": "UUID of bounty to test PATCH or apply"
+    },
+    {
+      "key": "APPLICATION_ID",
+      "value": "<paste-application-uuid>",
+      "description": "UUID of application to test PATCH"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Auth (no signing needed)",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{AUTH_URL}}/health",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["health"]
+            },
+            "description": "Liveness probe. Returns { status: 'ok', challenges: N }"
+          }
+        },
+        {
+          "name": "POST /auth/challenge",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{AUTH_URL}}/auth/challenge",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["auth", "challenge"]
+            },
+            "description": "Get a one-time challenge to sign with wallet. Returns { challenge, expiresAt }. 5min TTL."
+          }
+        },
+        {
+          "name": "POST /auth/verify (CANNOT do via Postman alone)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{AUTH_URL}}/auth/verify",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["auth", "verify"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletPubkey\": \"<base58 pubkey>\",\n  \"signature\": \"<base58 signature of challenge>\",\n  \"challenge\": \"<from /auth/challenge response>\"\n}"
+            },
+            "description": "Verify ed25519 signature of challenge → returns JWT.\n\n⚠️ Wallet signing (ed25519 over challenge) requires Solana SDK — can't do in pure Postman.\n\nWorkflow to get JWT:\n1. Run: pnpm -F @tirai/api test:bounty-flow\n2. Modify script to console.log(ownerSession.jwt) or check existing output\n3. Paste JWT to env var TIRAI_JWT\n4. Use it in subsequent auth-required requests below"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bounty Writes (need JWT in env)",
+      "item": [
+        {
+          "name": "POST /bounties — create",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{AUTH_URL}}/bounties",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["bounties"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{TIRAI_JWT}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Find XSS in admin panel\",\n  \"description\": \"Looking for XSS vulnerabilities in /admin routes.\",\n  \"rewardLamports\": \"50000000\",\n  \"deadline\": 1893456000000,\n  \"eligibility\": \"Open to all\"\n}"
+            },
+            "description": "Create bounty. owner_wallet auto-set from JWT.sub.\n\nNote: rewardLamports as STRING (BigInt serialization).\ndeadline as unix milliseconds, must be future.\n\nResponse: full bounty row (snake_case fields from Supabase)."
+          }
+        },
+        {
+          "name": "PATCH /bounties/:id — update status",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{AUTH_URL}}/bounties/{{BOUNTY_ID}}",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["bounties", "{{BOUNTY_ID}}"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{TIRAI_JWT}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paid\",\n  \"paymentSignature\": \"5RBz...sig...\"\n}"
+            },
+            "description": "Update bounty status. Owner only (verified server-side).\nstatus: open | paid | expired | cancelled\npaymentSignature: optional, set when status=paid (Cloak deposit tx)"
+          }
+        },
+        {
+          "name": "POST /bounties/:id/applications — apply",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{AUTH_URL}}/bounties/{{BOUNTY_ID}}/applications",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["bounties", "{{BOUNTY_ID}}", "applications"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{TIRAI_JWT}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submissionText\": \"Found XSS at /admin/users?q=<script>...\",\n  \"contactHandle\": \"@telegram_handle\"\n}"
+            },
+            "description": "Submit application. applicant_wallet auto-set from JWT.sub.\nUNIQUE constraint: 1 application per (bounty, applicant) — re-apply returns error."
+          }
+        },
+        {
+          "name": "PATCH /applications/:id — accept/reject",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{AUTH_URL}}/applications/{{APPLICATION_ID}}",
+              "host": ["{{AUTH_URL}}"],
+              "path": ["applications", "{{APPLICATION_ID}}"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{TIRAI_JWT}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}"
+            },
+            "description": "Update application status. Allowed callers:\n- Application's applicant (can update own)\n- Bounty's owner (can update any application to their bounty)\nstatus: pending | accepted | rejected"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reads (Supabase REST direct — anon key)",
+      "item": [
+        {
+          "name": "GET bounties (all open)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/bounties?status=eq.open&order=created_at.desc&limit=50",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "bounties"],
+              "query": [
+                { "key": "status", "value": "eq.open" },
+                { "key": "order", "value": "created_at.desc" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "header": [
+              { "key": "apikey", "value": "{{SUPABASE_ANON_KEY}}" },
+              { "key": "Authorization", "value": "Bearer {{SUPABASE_ANON_KEY}}" }
+            ],
+            "description": "Public read all open bounties. Anyone can call (no JWT)."
+          }
+        },
+        {
+          "name": "GET bounty by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/bounties?id=eq.{{BOUNTY_ID}}",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "bounties"],
+              "query": [{ "key": "id", "value": "eq.{{BOUNTY_ID}}" }]
+            },
+            "header": [
+              { "key": "apikey", "value": "{{SUPABASE_ANON_KEY}}" },
+              { "key": "Authorization", "value": "Bearer {{SUPABASE_ANON_KEY}}" }
+            ]
+          }
+        },
+        {
+          "name": "GET applications for bounty",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/applications?bounty_id=eq.{{BOUNTY_ID}}&order=created_at.desc",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "applications"],
+              "query": [
+                { "key": "bounty_id", "value": "eq.{{BOUNTY_ID}}" },
+                { "key": "order", "value": "created_at.desc" }
+              ]
+            },
+            "header": [
+              { "key": "apikey", "value": "{{SUPABASE_ANON_KEY}}" },
+              { "key": "Authorization", "value": "Bearer {{SUPABASE_ANON_KEY}}" }
+            ]
+          }
+        },
+        {
+          "name": "GET chain_notes (audit data)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/chain_notes?order=block_time.desc&limit=10",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "chain_notes"],
+              "query": [
+                { "key": "order", "value": "block_time.desc" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "header": [
+              { "key": "apikey", "value": "{{SUPABASE_ANON_KEY}}" },
+              { "key": "Authorization", "value": "Bearer {{SUPABASE_ANON_KEY}}" }
+            ],
+            "description": "Cloak chain notes indexed by Railway worker. Public read."
+          }
+        }
+      ]
+    },
+    {
+      "name": "RLS Security Check (should FAIL with anon)",
+      "item": [
+        {
+          "name": "POST bounty via Supabase anon (should 401)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/bounties",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "bounties"]
+            },
+            "header": [
+              { "key": "apikey", "value": "{{SUPABASE_ANON_KEY}}" },
+              { "key": "Authorization", "value": "Bearer {{SUPABASE_ANON_KEY}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Prefer", "value": "return=representation" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Should be blocked by RLS\",\n  \"description\": \"This insert should fail.\",\n  \"reward_lamports\": \"1000\",\n  \"deadline\": \"2099-12-31T00:00:00Z\",\n  \"owner_wallet\": \"FAKE\"\n}"
+            },
+            "description": "RLS test: anon key cannot INSERT bounties. Should return 401/403 with 'new row violates row-level security policy'.\n\nVerifies that ONLY auth-server (with service_role) can write to bounties table."
+          }
+        }
+      ]
+    }
+  ]
+}

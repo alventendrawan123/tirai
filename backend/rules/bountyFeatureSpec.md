@@ -5,6 +5,10 @@
 
 Dokumen ini fokus ke **flow** + **cara wire ke frontend**. Architecture rationale ada di commit history dan `bugUpdate.md`.
 
+🧪 **Testing**: lihat [`postman-guide.md`](./postman-guide.md) + [`postman-collection.json`](./postman-collection.json) untuk Postman setup. Atau pakai smoke script `pnpm -F @tirai/api test:bounty-flow`.
+
+⚠️ **BREAKING CHANGE 2026-05-08 evening**: `BountyManageContext` shape berubah dari `{ supabaseUrl, supabaseAnonKey, jwt }` → `{ authVerifierUrl, jwt }`. Reason: writes sekarang via auth-server (Railway), bukan Supabase langsung. Modern Supabase JWT verification incompatible dengan HS256 we sign — pivot ke trusted-writer pattern.
+
 ---
 
 ## Daftar Isi
@@ -185,7 +189,11 @@ if (!bountyResult.ok || bountyResult.value === null) return showNotFound();
 const bounty: Bounty = bountyResult.value;
 ```
 
-### Write (need JWT from auth flow)
+### Write (need JWT from auth flow — `BountyManageContext`)
+
+⚠️ **UPDATED 2026-05-08**: writes go via auth-server (Railway), not Supabase direct. `BountyManageContext` shape: `{ authVerifierUrl, jwt }` (drop `supabaseUrl + supabaseAnonKey`).
+
+Reason: modern Supabase migrated to ECDSA JWT signing keys, our HS256 JWT can't be verified by Supabase RLS directly. Auth-server (with `service_role`) acts as trusted writer.
 
 ```ts
 import { createBounty, updateBountyStatus } from "@tirai/api";
@@ -200,7 +208,7 @@ const result = await createBounty(
     eligibility: "Open to all",                              // optional
   },
   {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL!,
     jwt: session.jwt,
   },
 );
@@ -212,7 +220,10 @@ const updated = await updateBountyStatus(
   bountyId,
   "paid",
   paymentSignature,        // from createBountyPayment result
-  { supabaseUrl, jwt: session.jwt },
+  {
+    authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL!,
+    jwt: session.jwt,
+  },
 );
 ```
 
@@ -238,7 +249,7 @@ const updated = await updateBountyStatus(
 
 ## 6. Application flow — function reference
 
-### Researcher apply (need JWT)
+### Researcher apply (need JWT — `BountyManageContext`)
 
 ```ts
 import { applyToBounty } from "@tirai/api";
@@ -249,7 +260,10 @@ const result = await applyToBounty(
     submissionText: "I found XSS at /admin/users?q=<script>...",
     contactHandle: "@bima_telegram",       // optional
   },
-  { supabaseUrl, jwt: session.jwt },
+  {
+    authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL!,
+    jwt: session.jwt,
+  },
 );
 ```
 
@@ -275,7 +289,10 @@ import { updateApplicationStatus } from "@tirai/api";
 const result = await updateApplicationStatus(
   applicationId,
   "accepted",   // or "rejected"
-  { supabaseUrl, jwt: session.jwt },
+  {
+    authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL!,
+    jwt: session.jwt,
+  },
 );
 ```
 
@@ -331,7 +348,10 @@ async function onPaySuccess(paymentResult) {
       bountyId,
       "paid",
       paymentResult.value.signature,
-      { supabaseUrl, jwt: session.jwt },
+      {
+        authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL!,
+        jwt: session.jwt,
+      },
     );
   }
 }
