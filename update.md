@@ -831,7 +831,8 @@ Untuk demo hackathon: prepare 1-2 entries di history, scan akan complete ~1-2 me
 | 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) + e2e   | ✅ done        |
 | 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV) + e2e      | ✅ done        |
 | ~~6~~  | ~~Mainnet rehearsal~~                                           | ❌ skipped    |
-| 6    | Demo prep — DoD sweep + README + recording                      | ⏳ next        |
+| 6a   | **Audit indexer** — Supabase-backed cache (Opsi A revisi)       | 🚧 in progress |
+| 6b   | Demo prep — DoD sweep + README + recording                      | ⏳ next        |
 
 **Decision 2026-05-07:** demo + submission pakai **devnet only**. Mainnet rehearsal di-skip — Cloak Track judges focus ke privacy implementation, bukan mainnet evidence. Solscan links di pitch wajib pakai `?cluster=devnet` query param.
 

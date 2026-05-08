@@ -23,6 +23,8 @@ export interface AuditContext {
   afterTimestamp?: number;
   untilSignature?: string;
   batchSize?: number;
+  onProgress?: (processed: number, total: number) => void;
+  onStatus?: (status: string) => void;
 }
 
 export interface AuditEntry {
