@@ -1,6 +1,6 @@
 # Update untuk Bima — backend `@tirai/api` ready (Hari 1–3)
 
-**Dari:** Alven · **Update terakhir:** 2026-05-08 · **Status backend:** Hari 1–5 done + audit indexer LIVE di Railway (Opsi A bug fix)
+**Dari:** Alven · **Update terakhir:** 2026-05-08 · **Status backend:** Hari 1–5 + audit indexer + bounty management LIVE di Railway/Supabase
 
 ---
 

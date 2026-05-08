@@ -1,438 +1,442 @@
-# Bounty Feature — Spec
+# Bounty Feature — Integration Guide for Bima
 
-**Tanggal:** 2026-05-08
-**Owner:** Alven (backend) + Bima (frontend)
-**Status:** Draft — perlu review Bima sebelum implementation
-**Reference UX:** [SuperTeam Earn](https://superteam.fun/earn)
-**Hackathon deadline:** 2026-05-14 (6 hari)
+**Status:** ✅ Backend LIVE 2026-05-08 (Supabase + Railway auth server deployed)
+**Owner:** Alven (backend) · **Konsumen:** Bima (frontend)
 
----
-
-## 1. Goals
-
-Tirai sekarang minimalist (cuma /pay + /claim + /audit). Add bounty management layer biar owner bisa:
-
-1. **Create bounty** dengan detail lengkap (title, deskripsi, reward, deadline, eligibility)
-2. **Browse bounty list** publik (researcher bisa lihat opportunities)
-3. **Apply ke bounty** (researcher submit application)
-4. **Owner accept/reject** application
-5. **Pay bounty via Cloak** (existing flow, sekarang auto-fill dari bounty data)
-6. **Track deadline** (auto-expire bounty kalau lewat)
-
-Semua ini **tanpa kompromi privacy**: chain tetap unlinkable, public bounty data terpisah dari private payment.
+Dokumen ini fokus ke **flow** + **cara wire ke frontend**. Architecture rationale ada di commit history dan `bugUpdate.md`.
 
 ---
 
-## 2. Non-goals (MVP)
+## Daftar Isi
 
-- ❌ SPL token reward (SOL only untuk MVP)
-- ❌ Multi-stage bounty (1 reward per bounty)
-- ❌ KYC / identity verification
-- ❌ Dispute resolution mechanism
-- ❌ Multi-owner per bounty
-- ❌ Email notifications (Telegram bot off-scope)
-- ❌ Reputation system
+1. [Architecture singkat](#1-architecture-singkat)
+2. [Flow user — 3 personas](#2-flow-user--3-personas)
+3. [Env vars yang frontend butuh](#3-env-vars-yang-frontend-butuh)
+4. [Auth flow (Solana wallet → JWT)](#4-auth-flow-solana-wallet--jwt)
+5. [Bounty CRUD — function reference](#5-bounty-crud--function-reference)
+6. [Application flow — function reference](#6-application-flow--function-reference)
+7. [Wire `/pay` dari bounty](#7-wire-pay-dari-bounty)
+8. [Error handling](#8-error-handling)
+9. [Halaman frontend yang Bima bikin](#9-halaman-frontend-yang-bima-bikin)
+10. [DoD checklist](#10-dod-checklist)
 
 ---
 
-## 3. Architecture
+## 1. Architecture singkat
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  PUBLIC LAYER (Supabase + browse UI)                        │
-│                                                             │
-│  bounties table         applications table                  │
-│  - id, title, desc      - id, bounty_id, applicant_wallet   │
-│  - reward_lamports      - submission_text, status            │
-│  - deadline             - created_at                        │
-│  - status, owner_wallet                                     │
-│                                                             │
-│  ↑ owner CRUD via wallet JWT │ researcher apply via JWT      │
-│  ↓ public read (anon key)                                   │
+│  PUBLIC (Supabase Postgres + Railway auth server)           │
+│  - bounties + applications tables (anon read, JWT write)    │
+│  - Auth: POST /auth/challenge → POST /auth/verify → JWT     │
 └─────────────────────────────────────────────────────────────┘
-
-         ↓ Owner accepts application, get researcher's wallet (off-chain)
-         ↓ Owner click "Pay this researcher"
-
+                              ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  PRIVATE LAYER (Cloak — existing, unchanged)                │
-│                                                             │
-│  Owner: createBountyPayment(amount, label) → ticket         │
-│  Owner: share ticket via Telegram (off-chain)               │
-│  Researcher: claimBounty(ticket, mode) → SOL received       │
-│                                                             │
-│  Chain: anyone observes "deposit X" + "withdraw Y"          │
-│         CANNOT link X ↔ Y (Cloak privacy)                   │
+│  PRIVATE (Cloak chain — existing flow, unchanged)           │
+│  - createBountyPayment / inspectClaimTicket / claimBounty   │
 └─────────────────────────────────────────────────────────────┘
-
-         ↓ Owner mark bounty status = "paid" (off-chain)
-         ↓ (optional: store anonymized signature for owner records)
 ```
 
-**Privacy invariant**: Supabase **NEVER** stores Cloak ticket atau viewing key. Bounty + payment terpisah secara informasi:
-- Public sees: bounty exists with reward Y SOL
-- Public sees: Cloak deposit Y SOL (separate event)
-- Public sees: Cloak withdraw Y SOL to wallet Z (separate event)
-- Public CANNOT link these 3 to identify "owner paid researcher Z for bounty X"
+**Privacy invariant**: bounty metadata + applications publik, payment via Cloak privat. Chain tidak link bounty ↔ payment ↔ recipient.
+
+**LIVE infrastructure:**
+- **Supabase project**: `https://ahyezijhqlizwznhgnzh.supabase.co`
+- **Railway auth server**: `https://tirai-production.up.railway.app`
+- **Indexer**: same Railway service (poll Cloak chain → write public chain data)
 
 ---
 
-## 4. Data model
+## 2. Flow user — 3 personas
 
-### Table `bounties`
+### 🟦 Owner (yang nyediain bounty)
 
-```sql
-CREATE TABLE bounties (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title           TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
-  description     TEXT NOT NULL CHECK (length(description) BETWEEN 1 AND 5000),
-  reward_lamports BIGINT NOT NULL CHECK (reward_lamports > 0),
-  deadline        TIMESTAMPTZ NOT NULL,
-  eligibility     TEXT,                          -- optional, criteria text
-  owner_wallet    TEXT NOT NULL,                 -- base58 pubkey
-  status          TEXT NOT NULL DEFAULT 'open',  -- open | paid | expired | cancelled
-  payment_signature TEXT,                        -- Cloak deposit tx (set after pay)
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_bounties_status ON bounties(status);
-CREATE INDEX idx_bounties_owner ON bounties(owner_wallet);
-CREATE INDEX idx_bounties_deadline ON bounties(deadline);
+```
+1. Connect wallet (Phantom/Solflare)
+2. /bounties/new → form (title, desc, reward, deadline, eligibility)
+3. createBounty(input, ctx) → row di Supabase, status="open"
+4. Tunggu researcher apply
+5. Review applications di /bounties/[id]
+6. Click Accept di salah satu → updateApplicationStatus(appId, "accepted")
+7. Click "Pay accepted researcher" → redirect /pay?bountyId=xxx
+8. /pay auto-fill amount + label, submit Cloak deposit
+9. Setelah deposit success → updateBountyStatus(id, "paid", paymentSig)
+10. Ticket dikasih ke researcher off-chain (Telegram/email)
 ```
 
-### Table `applications`
+### 🟩 Researcher (yang ngapply bounty)
 
-```sql
-CREATE TABLE applications (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  bounty_id         UUID NOT NULL REFERENCES bounties(id) ON DELETE CASCADE,
-  applicant_wallet  TEXT NOT NULL,                       -- base58 pubkey
-  submission_text   TEXT NOT NULL CHECK (length(submission_text) BETWEEN 1 AND 5000),
-  contact_handle    TEXT,                                -- Telegram/Discord, optional
-  status            TEXT NOT NULL DEFAULT 'pending',     -- pending | accepted | rejected
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(bounty_id, applicant_wallet)                    -- 1 app per researcher per bounty
-);
-
-CREATE INDEX idx_applications_bounty ON applications(bounty_id);
-CREATE INDEX idx_applications_status ON applications(status);
+```
+1. Browse /bounties (public, no auth)
+2. Click bounty → /bounties/[id] detail
+3. Click Apply → connect wallet → /bounties/[id]/apply form
+4. Submit (submission_text + contact_handle optional) → applyToBounty()
+5. Tunggu owner accept
+6. Kalau accepted, owner contact lewat Telegram → kasih Cloak ticket
+7. Buka /claim → paste ticket → claim ke wallet sendiri (atau fresh wallet)
 ```
 
-### RLS policies
+### 🟨 Auditor (compliance)
 
-```sql
--- bounties: public read, owner-only write
-ALTER TABLE bounties ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "bounties public read"
-  ON bounties FOR SELECT USING (true);
-
-CREATE POLICY "bounties owner insert"
-  ON bounties FOR INSERT
-  WITH CHECK (owner_wallet = auth.jwt() ->> 'sub');
-
-CREATE POLICY "bounties owner update"
-  ON bounties FOR UPDATE
-  USING (owner_wallet = auth.jwt() ->> 'sub');
-
--- applications: public read, applicant insert, applicant update own, owner update status
-ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "applications public read"
-  ON applications FOR SELECT USING (true);
-
-CREATE POLICY "applications applicant insert"
-  ON applications FOR INSERT
-  WITH CHECK (applicant_wallet = auth.jwt() ->> 'sub');
-
-CREATE POLICY "applications applicant update own pending"
-  ON applications FOR UPDATE
-  USING (
-    applicant_wallet = auth.jwt() ->> 'sub'
-    AND status = 'pending'
-  );
-
--- Owner status update via service_role only (we'll use signed JWT in backend layer)
-```
+Tidak terkait bounty layer — pakai existing `/audit` flow dengan viewing key.
 
 ---
 
-## 5. Auth strategy: Solana wallet signature → custom JWT
+## 3. Env vars yang frontend butuh
+
+Tambah ke `frontend/.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://ahyezijhqlizwznhgnzh.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_m986Yk1Qy86Zf2om4vD84g_wV0RNNOG
+NEXT_PUBLIC_AUTH_VERIFIER_URL=https://tirai-production.up.railway.app
+```
+
+⚠️ Anon key boleh expose ke bundle (RLS membatasi ke SELECT). **JANGAN** masukin `service_role` key atau `JWT_SECRET`.
+
+---
+
+## 4. Auth flow (Solana wallet → JWT)
+
+### Konsep
+
+Owner/researcher harus authenticate sebelum bisa create bounty / apply. Auth tanpa email/password — cuma Solana wallet signature.
 
 ### Flow
 
+```ts
+// 1. Request challenge dari Railway auth server
+const challengeResult = await requestAuthChallenge({
+  authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL!,
+});
+if (!challengeResult.ok) return showError(challengeResult.error);
+const { challenge } = challengeResult.value;
+
+// 2. User sign challenge dengan wallet
+import bs58 from "bs58";
+const messageBytes = new TextEncoder().encode(challenge);
+const signedBytes = await wallet.signMessage(messageBytes);  // Phantom adapter API
+const signatureBase58 = bs58.encode(signedBytes);
+
+// 3. Submit signature ke Railway untuk verify + dapatkan JWT
+const sessionResult = await verifyAuthChallenge(
+  {
+    walletPubkey: wallet.publicKey.toBase58(),
+    signature: signatureBase58,
+    challenge,
+  },
+  { authVerifierUrl: process.env.NEXT_PUBLIC_AUTH_VERIFIER_URL! },
+);
+if (!sessionResult.ok) return showError(sessionResult.error);
+
+// 4. Simpan JWT di session state (jangan localStorage — XSS risk)
+const { jwt, walletPubkey, expiresAt } = sessionResult.value;
+setAuthSession({ jwt, walletPubkey, expiresAt });
+
+// JWT valid 1 jam. Expire → user re-login (challenge again).
 ```
-1. User connect Phantom/Solflare
-2. Frontend request "challenge" dari Tirai backend
-3. Backend kasih challenge string (random nonce + timestamp)
-4. User sign challenge with wallet → signature
-5. Frontend submit { walletPubkey, signature, challenge } ke verify endpoint
-6. Backend verify signature using @solana/web3.js verify
-7. If valid → mint Supabase JWT with sub=walletPubkey, expire 1 jam
-8. Frontend store JWT, attach Authorization: Bearer JWT to Supabase requests
-9. Supabase RLS policies use auth.jwt() ->> 'sub' = walletPubkey
+
+### Recommended: AuthProvider context
+
+```tsx
+// frontend/src/providers/AuthProvider.tsx
+const AuthContext = createContext<AuthSession | null>(null);
+
+export function AuthProvider({ children }) {
+  const [session, setSession] = useState<AuthSession | null>(null);
+
+  // Auto-expire check
+  useEffect(() => {
+    if (!session) return;
+    const ms = session.expiresAt - Date.now();
+    if (ms <= 0) { setSession(null); return; }
+    const t = setTimeout(() => setSession(null), ms);
+    return () => clearTimeout(t);
+  }, [session]);
+
+  // ... signIn, signOut helpers
+
+  return <AuthContext.Provider value={session}>{children}</AuthContext.Provider>;
+}
 ```
-
-### Implementation challenge
-
-Supabase JWT signing requires JWT secret yang harus stay server-side. Tirai client-only architecturally. Solution:
-
-**Add minimal verifier endpoint di indexer worker** (Railway):
-
-```
-POST https://tirai-indexer.up.railway.app/auth/verify
-Body: { walletPubkey, signature, challenge, timestamp }
-Response: { jwt: "eyJ..." } (Supabase-compatible)
-```
-
-Indexer punya `SUPABASE_JWT_SECRET` env var (different from service key). Sign JWT with HS256 + secret + payload `{ sub: walletPubkey, exp: timestamp + 3600 }`.
-
-**Privacy note**: backend never sees user data, cuma verify signature + sign JWT. Stateless.
-
-**Alternative: Supabase Edge Functions** (kalau gak mau touch indexer). Pros: serverless, kalau load tinggi auto-scale. Cons: TS/Deno mismatch, learning curve. **Saran**: stick with indexer endpoint untuk simplicity.
 
 ---
 
-## 6. API surface (`@tirai/api`)
+## 5. Bounty CRUD — function reference
 
-New functions added (all client-side, browser-friendly):
+### Read (public, anon key — no auth needed)
 
 ```ts
-// Authenticate user via Solana wallet signature
-export async function requestAuthChallenge(): Promise<Result<AuthChallenge, AppError>>;
+import { listBounties, getBountyById } from "@tirai/api";
 
-export async function verifyAuthChallenge(
-  input: VerifyAuthInput,
-  ctx: AuthContext,
-): Promise<Result<AuthSession, AppError>>;
+// List bounties (browse page)
+const result = await listBounties(
+  { status: "open", limit: 50 },     // optional filter
+  {
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  },
+);
+if (!result.ok) return showError(result.error);
+const bounties: Bounty[] = result.value;
 
-// Bounty CRUD
-export async function createBounty(
-  input: CreateBountyInput,
-  ctx: BountyContext,
-): Promise<Result<Bounty, AppError>>;
-
-export async function listBounties(
-  filter: ListBountiesFilter,
-  ctx: BountyReadContext,
-): Promise<Result<ReadonlyArray<Bounty>, AppError>>;
-
-export async function getBountyById(
-  id: string,
-  ctx: BountyReadContext,
-): Promise<Result<Bounty | null, AppError>>;
-
-export async function updateBountyStatus(
-  id: string,
-  status: BountyStatus,
-  paymentSignature?: string,
-  ctx: BountyContext,
-): Promise<Result<Bounty, AppError>>;
-
-// Application flow
-export async function applyToBounty(
-  input: ApplyInput,
-  ctx: BountyContext,
-): Promise<Result<Application, AppError>>;
-
-export async function listApplications(
-  bountyId: string,
-  ctx: BountyReadContext,
-): Promise<Result<ReadonlyArray<Application>, AppError>>;
-
-export async function updateApplicationStatus(
-  applicationId: string,
-  status: "accepted" | "rejected",
-  ctx: BountyContext,
-): Promise<Result<Application, AppError>>;
+// Get bounty by ID (detail page)
+const bountyResult = await getBountyById("uuid-here", { supabaseUrl, supabaseAnonKey });
+if (!bountyResult.ok || bountyResult.value === null) return showNotFound();
+const bounty: Bounty = bountyResult.value;
 ```
 
-Types:
+### Write (need JWT from auth flow)
 
 ```ts
-export type BountyStatus = "open" | "paid" | "expired" | "cancelled";
+import { createBounty, updateBountyStatus } from "@tirai/api";
 
-export interface Bounty {
-  id: string;
-  title: string;
-  description: string;
+// Create bounty
+const result = await createBounty(
+  {
+    title: "Find XSS bug in admin panel",
+    description: "Markdown supported text...",
+    rewardLamports: BigInt(Math.floor(0.5 * 1_000_000_000)), // 0.5 SOL
+    deadline: Date.now() + 7 * 24 * 60 * 60 * 1000,          // 7 days
+    eligibility: "Open to all",                              // optional
+  },
+  {
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    jwt: session.jwt,
+  },
+);
+if (!result.ok) return showError(result.error);
+const newBounty = result.value;
+
+// Update bounty status (after Cloak payment success)
+const updated = await updateBountyStatus(
+  bountyId,
+  "paid",
+  paymentSignature,        // from createBountyPayment result
+  { supabaseUrl, jwt: session.jwt },
+);
+```
+
+### `Bounty` type
+
+```ts
+{
+  id: string;                    // UUID
+  title: string;                 // 1-120 chars
+  description: string;           // 1-5000 chars
   rewardLamports: bigint;
-  deadline: number;        // unix ms
+  deadline: number;              // unix ms
   eligibility?: string;
-  ownerWallet: string;
-  status: BountyStatus;
-  paymentSignature?: string;
+  ownerWallet: string;           // base58
+  status: "open" | "paid" | "expired" | "cancelled";
+  paymentSignature?: string;     // Cloak deposit tx, set after pay
   createdAt: number;
   updatedAt: number;
 }
+```
 
-export interface Application {
+---
+
+## 6. Application flow — function reference
+
+### Researcher apply (need JWT)
+
+```ts
+import { applyToBounty } from "@tirai/api";
+
+const result = await applyToBounty(
+  {
+    bountyId: "uuid-here",
+    submissionText: "I found XSS at /admin/users?q=<script>...",
+    contactHandle: "@bima_telegram",       // optional
+  },
+  { supabaseUrl, jwt: session.jwt },
+);
+```
+
+⚠️ Researcher cuma boleh apply 1× per bounty (UNIQUE constraint). Re-apply error: duplicate key.
+
+### Owner list applications (read, anon)
+
+```ts
+import { listApplications } from "@tirai/api";
+
+const result = await listApplications(bountyId, { supabaseUrl, supabaseAnonKey });
+const apps: Application[] = result.value;
+
+// Filter di frontend
+const pending = apps.filter(a => a.status === "pending");
+```
+
+### Owner accept/reject (need JWT, owner of bounty)
+
+```ts
+import { updateApplicationStatus } from "@tirai/api";
+
+const result = await updateApplicationStatus(
+  applicationId,
+  "accepted",   // or "rejected"
+  { supabaseUrl, jwt: session.jwt },
+);
+```
+
+### `Application` type
+
+```ts
+{
   id: string;
   bountyId: string;
-  applicantWallet: string;
-  submissionText: string;
+  applicantWallet: string;       // base58
+  submissionText: string;        // 1-5000 chars
   contactHandle?: string;
   status: "pending" | "accepted" | "rejected";
   createdAt: number;
-}
-
-export interface CreateBountyInput {
-  title: string;
-  description: string;
-  rewardLamports: bigint;
-  deadline: number;
-  eligibility?: string;
-}
-
-export interface ListBountiesFilter {
-  status?: BountyStatus;
-  ownerWallet?: string;
-  limit?: number;
-  afterDeadline?: number;
-}
-
-export interface BountyContext {
-  supabaseUrl: string;
-  jwt: string;             // from auth flow
-}
-
-export interface BountyReadContext {
-  supabaseUrl: string;
-  supabaseAnonKey: string; // public read
+  updatedAt: number;
 }
 ```
 
 ---
 
-## 7. Frontend pages (Bima's scope)
+## 7. Wire `/pay` dari bounty
 
-### `/bounties` — public listing
+`/pay` page tetap pakai existing `createBountyPayment` Cloak flow. Tambahin auto-fill dari bounty:
 
-- Grid/list of bounty cards
-- Filter: status (open / paid / expired), reward range
-- Sort: deadline (soonest first), newest, highest reward
-- Click card → `/bounties/[id]` detail
+```tsx
+// pages/pay.tsx atau component
+import { useSearchParams } from "next/navigation";
+import { getBountyById, createBountyPayment, updateBountyStatus } from "@tirai/api";
 
-### `/bounties/[id]` — detail page
+const params = useSearchParams();
+const bountyId = params.get("bountyId");
 
-Public view (no auth):
-- Title, description (markdown render?), reward, deadline countdown, eligibility
-- Owner wallet (truncated)
-- Status badge
-- Apply button (kalau status=open dan deadline > now)
+// Fetch bounty data, prefill form
+useEffect(() => {
+  if (!bountyId) return;
+  getBountyById(bountyId, { supabaseUrl, supabaseAnonKey }).then(r => {
+    if (r.ok && r.value) {
+      setAmountSol(Number(r.value.rewardLamports) / 1_000_000_000);
+      setLabel(r.value.title);
+      // Disable form fields jika auto-filled (locked to bounty data)
+    }
+  });
+}, [bountyId]);
 
-Owner view (auth = match owner_wallet):
-- Edit button (only if status=open)
-- Cancel button
-- "Applications" tab → list applications with accept/reject
-- "Pay accepted researcher" button → redirect ke `/pay/[bountyId]`
+// Setelah Cloak deposit success
+async function onPaySuccess(paymentResult) {
+  // 1. Show ticket QR + viewing key (existing behavior)
+  setTicket(paymentResult.value.ticket);
+  
+  // 2. KALAU dari bounty flow, mark sebagai paid
+  if (bountyId) {
+    await updateBountyStatus(
+      bountyId,
+      "paid",
+      paymentResult.value.signature,
+      { supabaseUrl, jwt: session.jwt },
+    );
+  }
+}
+```
 
-Researcher view (auth, has applied):
-- Application status visible
-- Edit application (only if pending)
-
-### `/bounties/new` — create form
-
-- Auth required (wallet connected)
-- Form: title, description (textarea, markdown supported), reward (SOL input), deadline (date picker), eligibility (optional)
-- Submit → `createBounty()` → redirect ke detail page
-
-### `/bounties/[id]/apply` — application form
-
-- Auth required (wallet)
-- Form: submission_text (markdown), contact_handle (optional)
-- Submit → `applyToBounty()` → redirect ke detail page
-
-### `/pay` (existing, modified)
-
-- Existing form retained
-- Optional query param `?bountyId=xxx` → auto-fill amount + label dari bounty data
-- After success: call `updateBountyStatus(bountyId, "paid", paymentSignature)` ke backend
+URL flow: `/bounties/[id]` → click "Pay accepted researcher" → redirect ke `/pay?bountyId=xxx` → form auto-filled → submit Cloak → mark bounty paid.
 
 ---
 
-## 8. Privacy guarantees (verified per layer)
+## 8. Error handling
 
-| Layer | What's stored | Privacy verdict |
+Semua function return `Result<T, AppError>`. Pattern sama dengan existing functions:
+
+```ts
+const result = await createBounty(input, ctx);
+if (!result.ok) {
+  switch (result.error.kind) {
+    case "INVALID_INPUT":
+      showFormError(result.error.field, result.error.message);
+      break;
+    case "RPC":
+      showToast(`Network error: ${result.error.message}`);
+      if (result.error.retryable) showRetry();
+      break;
+    default:
+      showToast("Unknown error");
+  }
+  return;
+}
+const bounty = result.value;
+```
+
+### Common errors specific ke bounty layer
+
+| Skenario | error.kind | Message |
 |---|---|---|
-| Supabase `bounties` | Public bounty info, owner_wallet, payment_signature (post-pay) | ✅ All public anyway (chain) |
-| Supabase `applications` | applicant_wallet, submission text | ⚠️ Application reveals interest — researcher choice |
-| Cloak chain | Deposit + withdraw separately | ✅ Unlinked |
-| Supabase ↔ Cloak | `payment_signature` di bounty row points to deposit tx | ⚠️ Owner reveals THEIR side; researcher side stays private |
-
-### Detailed privacy analysis
-
-**Q: Does storing `payment_signature` in bounty row break privacy?**
-
-A: No, because:
-- Anyone watching chain sees Cloak deposit anyway (signature public)
-- Linking deposit ↔ bounty = "owner paid SOMEONE for bounty X" — owner identity already known via owner_wallet
-- The PRIVATE part is the WITHDRAW (researcher side) — that's NEVER linked to bounty in our schema
-- Auditor can match deposit ↔ bounty (they know owner anyway), but CANNOT find researcher
-
-**Q: Should applicant_wallet be private?**
-
-A: It's their choice. Researcher applies = signal "I'm interested". They can use a fresh wallet for application + fresh wallet for claim — fully unlinkable.
-
-**Q: Can we leak researcher identity by storing application metadata?**
-
-A: Application stores researcher wallet, but **NOT** Cloak claim ticket or destination wallet. Even if applicant_wallet = same as future claim wallet, on-chain analysis can't link them through Tirai (because withdraw uses fresh keypair).
+| Title kosong/>120 chars | `INVALID_INPUT` | field=title |
+| Reward ≤0 | `INVALID_INPUT` | field=rewardLamports |
+| Deadline di masa lalu | `INVALID_INPUT` | field=deadline |
+| JWT expired/invalid | `RPC` | "JWT expired" / "401 Unauthorized" — re-trigger auth flow |
+| Duplicate application | `RPC` | "duplicate key" — researcher sudah apply sebelumnya |
+| Update bounty bukan owner | `RPC` | RLS rejected — wallet tidak match |
 
 ---
 
-## 9. MVP scope checklist (kerjain dalam 3-4 hari)
+## 9. Halaman frontend yang Bima bikin
 
-### Backend (Alven)
-- [ ] Supabase schema migration (bounties + applications)
-- [ ] RLS policies
-- [ ] Auth verifier endpoint di indexer (POST /auth/verify)
-- [ ] `@tirai/api` 8 fungsi baru (create/list/get/updateStatus/apply/listApps/updateApp)
-- [ ] Unit tests
-- [ ] Smoke test script
-- [ ] Update update.md + plan.md
+| Path | Auth | Function utama |
+|---|---|---|
+| `/bounties` | public | `listBounties({ status: "open" })` |
+| `/bounties/[id]` | public + owner/applicant | `getBountyById` + `listApplications` |
+| `/bounties/new` | wallet auth | `createBounty` |
+| `/bounties/[id]/apply` | wallet auth | `applyToBounty` |
+| `/pay?bountyId=xxx` | wallet (Phantom signTransaction) | `getBountyById` + `createBountyPayment` + `updateBountyStatus` |
 
-### Frontend (Bima)
-- [ ] `/bounties` listing page
-- [ ] `/bounties/[id]` detail page (public + owner + researcher views)
+### Recommended components (reusable)
+
+- `BountyCard` — tampil di listing + detail summary
+- `BountyForm` — create + edit (kalau allow edit)
+- `ApplicationForm` — researcher submit
+- `ApplicationsList` — owner review applications
+- `WalletAuthButton` — Sign in / Sign out
+- `AuthGuard` — wrapper component, redirect ke connect wallet kalau belum auth
+
+---
+
+## 10. DoD checklist
+
+### Backend (Alven — DONE ✅)
+
+- [x] Supabase schema (`bounties`, `applications`) + RLS
+- [x] Auth verifier endpoint di Railway (`POST /auth/challenge`, `POST /auth/verify`)
+- [x] `@tirai/api` 9 functions baru:
+  - `createBounty`, `listBounties`, `getBountyById`, `updateBountyStatus`
+  - `applyToBounty`, `listApplications`, `updateApplicationStatus`
+  - `requestAuthChallenge`, `verifyAuthChallenge`
+- [x] Typecheck + lint clean
+- [x] All existing tests still pass (25/25)
+
+### Frontend (Bima — TODO)
+
+- [ ] AuthProvider with wallet sign-in flow
+- [ ] `/bounties` listing page + BountyCard component
+- [ ] `/bounties/[id]` detail page (3 view variants: public, owner, researcher)
 - [ ] `/bounties/new` create form
-- [ ] `/bounties/[id]/apply` application form
-- [ ] `/pay` modify untuk auto-fill dari `?bountyId=`
-- [ ] Wallet auth flow (challenge → sign → JWT)
-- [ ] BountyCard component (untuk listing + reuse)
+- [ ] `/bounties/[id]/apply` apply form
+- [ ] Modify `/pay` untuk handle `?bountyId=` query param
+- [ ] Error handling sesuai §8
+- [ ] Mobile responsive
+
+### E2E demo flow
+
+- [ ] Owner connect Phantom → create bounty → bounty muncul di listing
+- [ ] Researcher (incognito tab + different wallet) apply ke bounty
+- [ ] Owner accept application di /bounties/[id]
+- [ ] Owner click "Pay" → /pay auto-fill → Cloak deposit → bounty marked "paid"
+- [ ] Owner share ticket via Telegram → researcher claim via /claim
 
 ---
 
-## 10. Timeline estimate
+## Pertanyaan / blocker
 
-| Day | Deliverable |
-|---|---|
-| **Day 1** (today) | Schema + RLS + auth verifier + types |
-| **Day 2** | Bounty CRUD + tests + smoke script |
-| **Day 3** | Application flow + listings + tests |
-| **Day 4** | Bima frontend integration support + bug fixes |
-| **Day 5** | Demo prep + recording |
-
-5 hari termasuk 1 hari buffer. Hackathon deadline May 14 = 6 hari, masih ada margin.
-
----
-
-## 11. Open questions (need Bima/Alven align)
-
-1. **Markdown render di description?** Atau plain text saja untuk MVP? (Recommendation: markdown — pakai library `marked` atau `remark` — tambah ~50KB bundle)
-2. **Bounty title duplicate** (multiple bounty same title) — allow atau enforce unique? (Recommendation: allow, judge sendiri)
-3. **Cancel bounty refund** — kalau owner cancel SETELAH pay → bagaimana? (Out of scope MVP — owner musti coordinate sama researcher off-chain)
-4. **Applications visible to other applicants?** (Recommendation: hide submission text from non-owner, show count + applicant_wallet doang)
-5. **Deadline auto-expire** — bagaimana? Cron job di indexer atau on-read filter? (Recommendation: on-read filter dulu, cron sebagai stretch)
-
----
-
-## 12. Implementation kickoff
-
-Setelah Bima review + approve spec ini, urutan kerja:
-
-1. **Saya (Alven)** mulai Day 1 backend (schema + auth)
-2. **Bima** boleh mulai paralel: bikin BountyCard component + listing layout (mock data dulu)
-3. Sync di chat tiap selesai milestone
-
-Spec ini akan di-commit ke `backend/rules/bountyFeatureSpec.md`. Updates akan di-track via PR (atau direct commit + ping).
+Tag Alven di chat. Backend code reference:
+- Bounty CRUD: `backend/src/bounty/{create,list,get,update}-*.ts`
+- Auth client: `backend/src/auth/*.ts`
+- Auth server: `backend/indexer/src/auth-server.ts`
+- Schema: `backend/indexer/schema-bounties.sql`
+- Spec history: commits `8b7311b` (spec) + `e4badf6` (impl)
