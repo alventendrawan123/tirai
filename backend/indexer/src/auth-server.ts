@@ -20,7 +20,7 @@ import {
 } from "node:http";
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import * as nacl from "tweetnacl";
+import nacl from "tweetnacl";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const JWT_TTL_SECONDS = 60 * 60; // 1 hour
