@@ -17,6 +17,9 @@ importers:
       '@solana/web3.js':
         specifier: ^1.98.0
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@supabase/supabase-js':
+        specifier: ^2.45.0
+        version: 2.105.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
@@ -50,7 +53,7 @@ importers:
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@supabase/supabase-js':
         specifier: ^2.45.0
-        version: 2.105.3(bufferutil@4.1.0)
+        version: 2.105.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       bs58:
         specifier: ^6.0.0
         version: 6.0.0
@@ -6499,7 +6502,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/realtime-js@2.105.3(bufferutil@4.1.0)':
+  '@supabase/realtime-js@2.105.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
     dependencies:
       '@supabase/phoenix': 0.4.1
       '@types/ws': 8.18.1
@@ -6514,12 +6517,12 @@ snapshots:
       iceberg-js: 0.8.1
       tslib: 2.8.1
 
-  '@supabase/supabase-js@2.105.3(bufferutil@4.1.0)':
+  '@supabase/supabase-js@2.105.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
     dependencies:
       '@supabase/auth-js': 2.105.3
       '@supabase/functions-js': 2.105.3
       '@supabase/postgrest-js': 2.105.3
-      '@supabase/realtime-js': 2.105.3(bufferutil@4.1.0)
+      '@supabase/realtime-js': 2.105.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@supabase/storage-js': 2.105.3
     transitivePeerDependencies:
       - bufferutil

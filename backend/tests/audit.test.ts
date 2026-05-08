@@ -15,7 +15,12 @@ describe("scanAuditHistory input validation", () => {
   it("returns VIEWING_KEY_INVALID when length is wrong", async () => {
     const result = await scanAuditHistory(
       { viewingKey: "abc" },
-      { connection: new Connection(RPC_URL), cluster: "devnet" },
+      {
+        connection: new Connection(RPC_URL),
+        cluster: "devnet",
+        supabaseUrl: "https://example.supabase.co",
+        supabaseAnonKey: "test-anon",
+      },
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -25,7 +30,12 @@ describe("scanAuditHistory input validation", () => {
   it("returns VIEWING_KEY_INVALID when chars are non-hex", async () => {
     const result = await scanAuditHistory(
       { viewingKey: "Z".repeat(64) },
-      { connection: new Connection(RPC_URL), cluster: "devnet" },
+      {
+        connection: new Connection(RPC_URL),
+        cluster: "devnet",
+        supabaseUrl: "https://example.supabase.co",
+        supabaseAnonKey: "test-anon",
+      },
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;

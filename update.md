@@ -1,12 +1,16 @@
 # Update untuk Bima — backend `@tirai/api` ready (Hari 1–3)
 
-**Dari:** Alven · **Update terakhir:** 2026-05-07 · **Status backend:** Hari 1–5 done, semua fungsi public real (no more stubs)
+**Dari:** Alven · **Update terakhir:** 2026-05-08 · **Status backend:** Hari 1–5 done + audit indexer LIVE di Railway (Opsi A bug fix)
 
 ---
 
 ## TL;DR
 
-Backend full implementation complete. Semua 5 fungsi public real, no more stubs. End-to-end devnet test PASS untuk `/audit`: deposit → `scanAuditHistory` (recover entry via viewing key) → `exportAuditReport` (CSV + PDF rendered). Privacy invariant verified: `recipient` field di-strip dari output, no leak ke caller. Sekarang **all 3 halaman frontend (`/pay`, `/claim`, `/audit`)** punya real backend behind them.
+**Audit scan bug Bima FIXED (Opsi A — server-side indexer + Supabase).** Scan time `/audit` turun dari **30-120 detik → <5 detik**, no more 429 storms. Indexer di Railway running 24/7, write public chain data ke Supabase. `scanAuditHistory` di-rewrite: query Supabase + decrypt local di browser (privacy maintained — VK never leaves browser).
+
+**Frontend perlu 1 perubahan**: add `supabaseUrl` + `supabaseAnonKey` ke `AuditContext`. Lihat §3d untuk migration guide.
+
+**Verifikasi e2e (2026-05-08)**: deposit `3CPbKn7q...` → indexer pickup ~25s → scan via Supabase **3 detik** → 1 entry recovered → CSV+PDF generated. Privacy invariant maintained throughout.
 
 ---
 
@@ -597,9 +601,20 @@ Return (`ok: true`, `mode: "existing"`):
 
 ---
 
-## 4c. Contoh wiring `/audit` (real, baru ship di Hari 5)
+## 4c. Contoh wiring `/audit` (UPDATED 2026-05-08 — Supabase backend)
 
-`/audit` punya 2 fungsi: `scanAuditHistory` (auditor kasih VK, dapat list AuditEntry) + `exportAuditReport` (download CSV/PDF). Semua read-only, no signing.
+⚠️ **BREAKING CHANGE dari versi sebelumnya** — `AuditContext` sekarang butuh `supabaseUrl` + `supabaseAnonKey`. SDK `scanTransactions` tidak lagi dipakai (terlalu lambat, 429 storm). Sekarang query Supabase yang di-populate Railway indexer.
+
+`/audit` punya 2 fungsi: `scanAuditHistory` (auditor kasih VK, dapat list AuditEntry) + `exportAuditReport` (download CSV/PDF). Semua read-only, no signing, **VK never leaves browser**.
+
+### Frontend env vars (tambah ke `.env.local`)
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://ahyezijhqlizwznhgnzh.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_m986Yk1Qy86Zf2om4vD84g_wV0RNNOG
+```
+
+⚠️ **Anon key boleh di-expose ke frontend** (Supabase RLS membatasi ke `chain_notes` SELECT only). **JANGAN** masukin `service_role` key ke frontend — itu bypass RLS.
 
 ### Step 1: scan via viewing key
 
@@ -617,11 +632,14 @@ export async function scanAuditAdapter(
     {
       connection,
       cluster: "devnet",
-      // Optional perf knobs (default sudah safe untuk free-tier RPC):
-      // limit: 200,           // max signatures to scan
-      // batchSize: 3,         // RPC parallelism — default 3 fits Helius/QuickNode free tier
-      // untilSignature: ...,  // resume from last scan for incremental updates
-      // afterTimestamp: ...,  // filter older than X ms
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      // Optional perf knobs:
+      // limit: 500,           // max rows to fetch from Supabase (default 500)
+      // afterTimestamp: ...,  // filter older than X ms (epoch)
+      // untilSignature: ...,  // resume from last scan
+      // onProgress: (p, t) => updateProgressBar(p, t),  // trial-decrypt progress
+      // onStatus: (s) => updateStatus(s),
     },
   );
 }
@@ -831,7 +849,7 @@ Untuk demo hackathon: prepare 1-2 entries di history, scan akan complete ~1-2 me
 | 4    | `inspectClaimTicket` + `claimBounty` (fresh + existing) + e2e   | ✅ done        |
 | 5    | `scanAuditHistory` + `exportAuditReport` (PDF + CSV) + e2e      | ✅ done        |
 | ~~6~~  | ~~Mainnet rehearsal~~                                           | ❌ skipped    |
-| 6a   | **Audit indexer** — Supabase-backed cache (Opsi A revisi)       | 🚧 in progress |
+| 6a   | **Audit indexer** — Supabase-backed cache + Railway 24/7        | ✅ LIVE        |
 | 6b   | Demo prep — DoD sweep + README + recording                      | ⏳ next        |
 
 **Decision 2026-05-07:** demo + submission pakai **devnet only**. Mainnet rehearsal di-skip — Cloak Track judges focus ke privacy implementation, bukan mainnet evidence. Solscan links di pitch wajib pakai `?cluster=devnet` query param.

@@ -41,8 +41,12 @@ async function main(): Promise<void> {
       console.error("   ❌ FAIL:", cursor.error.message);
     } else {
       console.log(`   ✅ OK — cursor row found`);
-      console.log(`      last_signature: ${cursor.data?.last_signature ?? "(null)"}`);
-      console.log(`      last_slot:      ${cursor.data?.last_slot ?? "(null)"}`);
+      console.log(
+        `      last_signature: ${cursor.data?.last_signature ?? "(null)"}`,
+      );
+      console.log(
+        `      last_slot:      ${cursor.data?.last_slot ?? "(null)"}`,
+      );
     }
   } else {
     console.log("⚠️  SUPABASE_ANON_KEY not set — skipping anon tests");
@@ -79,7 +83,7 @@ async function main(): Promise<void> {
       SUPABASE_URL,
       SUPABASE_SERVICE_KEY,
     );
-    const testSig = "test_smoke_" + Date.now();
+    const testSig = `test_smoke_${Date.now()}`;
     const { error: insertErr } = await adminClient.from("chain_notes").insert({
       signature: testSig,
       slot: 0,

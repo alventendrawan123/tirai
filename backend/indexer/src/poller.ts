@@ -1,7 +1,7 @@
 import {
   bytesToHex,
-  calculateFeeBigint,
   CLOAK_PROGRAM_ID,
+  calculateFeeBigint,
 } from "@cloak.dev/sdk-devnet";
 import {
   type ConfirmedSignatureInfo,
@@ -17,10 +17,7 @@ import {
   upsertChainNotes,
   writeCursor,
 } from "./db";
-import {
-  parseChainNotesFromIx,
-  parseTransactIxContext,
-} from "./parser";
+import { parseChainNotesFromIx, parseTransactIxContext } from "./parser";
 
 const SIGNATURE_PAGE_SIZE = 250;
 
@@ -115,7 +112,12 @@ function findCloakInstructions(
         accounts?: number[];
       };
       const programIdx = ixObj.programIdIndex;
-      if (programIdx == null || programIdx < 0 || programIdx >= accountKeys.length) continue;
+      if (
+        programIdx == null ||
+        programIdx < 0 ||
+        programIdx >= accountKeys.length
+      )
+        continue;
       if (accountKeys[programIdx] !== programIdStr) continue;
       const data = decodeIxData(ixObj.data);
       if (!data || data.length === 0) continue;
@@ -138,7 +140,12 @@ function findCloakInstructions(
           accounts?: number[];
         };
         const programIdx = ixObj.programIdIndex;
-        if (programIdx == null || programIdx < 0 || programIdx >= accountKeys.length) continue;
+        if (
+          programIdx == null ||
+          programIdx < 0 ||
+          programIdx >= accountKeys.length
+        )
+          continue;
         if (accountKeys[programIdx] !== programIdStr) continue;
         const data = decodeIxData(ixObj.data);
         if (!data || data.length === 0) continue;
@@ -179,7 +186,9 @@ export async function pollOnce(opts: PollerOptions): Promise<PollResult> {
   // transactions. Demo use case doesn't need historical data; backfill
   // from genesis would take 5-30 minutes on devnet (thousands of tx).
   if (!untilSig) {
-    console.log("[indexer] first run detected — initializing cursor to latest signature (skipping historical backfill)");
+    console.log(
+      "[indexer] first run detected — initializing cursor to latest signature (skipping historical backfill)",
+    );
     const initialPage = await connection.getSignaturesForAddress(programId, {
       limit: 1,
     });
@@ -190,8 +199,14 @@ export async function pollOnce(opts: PollerOptions): Promise<PollResult> {
         lastSlot: latest.slot,
         lastBlockTime: new Date(latest.blockTime * 1000).toISOString(),
       });
-      console.log(`[indexer] cursor initialized at ${latest.signature.slice(0, 16)}…`);
-      return { scannedSignatures: 0, insertedRows: 0, newCursor: latest.signature };
+      console.log(
+        `[indexer] cursor initialized at ${latest.signature.slice(0, 16)}…`,
+      );
+      return {
+        scannedSignatures: 0,
+        insertedRows: 0,
+        newCursor: latest.signature,
+      };
     }
     console.log("[indexer] no signatures yet on program — waiting next cycle");
     return { scannedSignatures: 0, insertedRows: 0, newCursor: null };
@@ -262,7 +277,8 @@ export async function pollOnce(opts: PollerOptions): Promise<PollResult> {
 
         const notes = parseChainNotesFromIx(ix.data);
         const fee = calculateFeeBigint(ctx.amount);
-        const netAmount = ctx.txType === "deposit" ? ctx.amount : ctx.amount - fee;
+        const netAmount =
+          ctx.txType === "deposit" ? ctx.amount : ctx.amount - fee;
 
         // Pool address: typically accountIndexes[1] for Cloak Transact, but
         // we record best-effort. Frontend can derive mint from this.
@@ -317,7 +333,9 @@ export async function pollOnce(opts: PollerOptions): Promise<PollResult> {
 export async function startPollLoop(opts: PollerOptions): Promise<void> {
   const programIdStr = opts.programId.toBase58();
   console.log(`[indexer] starting poll loop for ${programIdStr}`);
-  console.log(`[indexer] interval: ${opts.pollIntervalMs}ms, batch: ${opts.batchSize}`);
+  console.log(
+    `[indexer] interval: ${opts.pollIntervalMs}ms, batch: ${opts.batchSize}`,
+  );
 
   // Suppress unused-import warnings — referenced for documentation.
   void CLOAK_PROGRAM_ID;

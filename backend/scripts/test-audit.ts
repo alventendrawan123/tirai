@@ -101,9 +101,29 @@ async function main() {
 
   console.log("🔍 STEP 2: scanAuditHistory");
   console.log();
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Set SUPABASE_URL + SUPABASE_ANON_KEY env vars (read-only audit query). See backend/indexer/.env for reference.",
+    );
+  }
+
   const scanResult = await scanAuditHistory(
     { viewingKey },
-    { connection, cluster: "devnet", limit: scanLimit, batchSize },
+    {
+      connection,
+      cluster: "devnet",
+      supabaseUrl,
+      supabaseAnonKey,
+      limit: scanLimit,
+      onStatus: (s) => console.log(`  scan → ${s}`),
+      onProgress: (p, t) => {
+        if (p % 50 === 0 || p === t) {
+          console.log(`  scan → progress ${p}/${t}`);
+        }
+      },
+    },
   );
   if (!scanResult.ok) {
     console.error("❌ scanAuditHistory FAILED:", scanResult.error);
