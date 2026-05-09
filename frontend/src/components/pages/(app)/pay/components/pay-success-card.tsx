@@ -10,6 +10,7 @@ import {
   TokenAmount,
   TxStatus,
 } from "@/components/ui";
+import { env } from "@/config";
 import { solscanTxUrl } from "@/lib/web3";
 import type { BountyPaymentResult, Cluster } from "@/types/api";
 
@@ -153,10 +154,11 @@ function buildHandoffMessage({
   bountyTitle: string;
   ticket: string;
 }): string {
+  const claimUrl = `${env.NEXT_PUBLIC_DOMAIN.replace(/\/$/, "")}/claim`;
   return [
     `Bounty payout: ${bountyTitle}`,
     "",
-    "Open https://tirai.app/claim and paste the ticket below to claim your reward.",
+    `Open ${claimUrl} and paste the ticket below to claim your reward.`,
     "You can claim into your existing wallet, or generate a fresh wallet for max privacy.",
     "",
     "Ticket:",

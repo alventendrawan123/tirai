@@ -7,6 +7,7 @@ const ClientEnvSchema = z.object({
   NEXT_PUBLIC_RPC_PROXY_PATH: z.string().min(1).default("/api/rpc"),
   NEXT_PUBLIC_SOLANA_WS_URL: z.string().optional(),
   NEXT_PUBLIC_SOLANA_RPC_URL: z.string().optional(),
+  NEXT_PUBLIC_DOMAIN: z.string().url().default("https://tirai-frontier.app"),
 });
 
 const ServerEnvSchema = z.object({
@@ -21,6 +22,7 @@ const clientParsed = ClientEnvSchema.safeParse({
   NEXT_PUBLIC_RPC_PROXY_PATH: process.env.NEXT_PUBLIC_RPC_PROXY_PATH,
   NEXT_PUBLIC_SOLANA_WS_URL: process.env.NEXT_PUBLIC_SOLANA_WS_URL,
   NEXT_PUBLIC_SOLANA_RPC_URL: process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+  NEXT_PUBLIC_DOMAIN: process.env.NEXT_PUBLIC_DOMAIN,
 });
 
 if (!clientParsed.success) {
