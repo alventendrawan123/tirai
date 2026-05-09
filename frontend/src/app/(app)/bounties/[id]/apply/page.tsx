@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { ApplyToBountyPage } from "@/components/pages/(app)/bounties";
 
 interface Params {
   params: Promise<{ id: string }>;
 }
+
+export const metadata: Metadata = {
+  title: "Apply to bounty",
+};
 
 export default async function Page({ params }: Params) {
   const { id } = await params;

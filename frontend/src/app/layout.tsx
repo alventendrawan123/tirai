@@ -15,7 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tirai — Privacy-first bounty payouts",
+  title: {
+    default: "Tirai",
+    template: "Tirai | %s",
+  },
   description:
     "Tirai pays Solana whitehats privately. Built on the Cloak SDK with zero-knowledge proofs that decouple researcher identity from on-chain payouts.",
 };
