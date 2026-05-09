@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Container, NetworkBadge, WalletButton } from "@/components/ui";
+import {
+  Container,
+  NetworkBadge,
+  ThemeToggle,
+  WalletButton,
+} from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -56,6 +61,7 @@ export function Header() {
         </div>
         <div className="flex items-center gap-3">
           <NetworkBadge cluster="devnet" />
+          <ThemeToggle />
           <WalletButton />
         </div>
       </Container>

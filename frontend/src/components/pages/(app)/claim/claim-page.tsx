@@ -7,7 +7,6 @@ import {
   SaveKeyDialog,
   SectionEyebrow,
   SectionLead,
-  WalletButton,
 } from "@/components/ui";
 import { useClaimMutation, useInspectTicketQuery } from "@/features/claim";
 import { mapTiraiError } from "@/lib/errors";
@@ -91,14 +90,11 @@ export function ClaimPage() {
 
   return (
     <Container size="md" className="py-16 md:py-20">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionEyebrow>Researcher · /claim</SectionEyebrow>
-          <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
-            Claim a bounty
-          </h1>
-        </div>
-        <WalletButton />
+      <div>
+        <SectionEyebrow>Researcher · /claim</SectionEyebrow>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
+          Claim a bounty
+        </h1>
       </div>
       <SectionLead>
         Paste a claim ticket or scan its QR code to inspect the payout. You

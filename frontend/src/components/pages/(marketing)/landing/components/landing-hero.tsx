@@ -20,9 +20,6 @@ export function LandingHero() {
         />
       </div>
       <Container size="xl" className="relative py-24 md:py-32">
-        <SectionEyebrow>
-          Tirai · Cloak Hackathon · Frontier Track
-        </SectionEyebrow>
         <SplitText
           tag="h1"
           text="Privacy-first bounty payouts for Solana whitehats."
@@ -33,7 +30,7 @@ export function LandingHero() {
         />
         <p className="text-secondary mt-6 max-w-2xl text-lg leading-relaxed">
           Tirai severs the on-chain link between a researcher&apos;s identity
-          and the payment they receive — using zero-knowledge proofs over the{" "}
+          and the payment they receive using zero-knowledge proofs over the{" "}
           <ShinyText
             text="Cloak Shield Pool"
             className="font-medium"

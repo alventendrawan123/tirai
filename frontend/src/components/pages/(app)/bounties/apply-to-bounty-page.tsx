@@ -106,16 +106,13 @@ export function ApplyToBountyPage({ bountyId }: ApplyToBountyPageProps) {
 
   return (
     <Container size="md" className="py-16 md:py-20">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionEyebrow>
-            Bounty board · /bounties/{bountyId.slice(0, 8)}…/apply
-          </SectionEyebrow>
-          <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
-            Apply to bounty
-          </h1>
-        </div>
-        <WalletButton />
+      <div>
+        <SectionEyebrow>
+          Bounty board · /bounties/{bountyId.slice(0, 8)}…/apply
+        </SectionEyebrow>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
+          Apply to bounty
+        </h1>
       </div>
 
       {bountyQuery.isLoading ? (
@@ -160,7 +157,9 @@ export function ApplyToBountyPage({ bountyId }: ApplyToBountyPageProps) {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="contactHandle">Contact handle (optional)</FieldLabel>
+          <FieldLabel htmlFor="contactHandle">
+            Contact handle (optional)
+          </FieldLabel>
           <Input
             id="contactHandle"
             value={contactHandle}
@@ -168,7 +167,8 @@ export function ApplyToBountyPage({ bountyId }: ApplyToBountyPageProps) {
             placeholder="@bima_telegram"
           />
           <FieldHint>
-            Owner uses this to send you the Cloak ticket off-chain when accepted.
+            Owner uses this to send you the Cloak ticket off-chain when
+            accepted.
           </FieldHint>
         </Field>
 

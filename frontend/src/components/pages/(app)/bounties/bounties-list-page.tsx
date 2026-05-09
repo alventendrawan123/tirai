@@ -11,7 +11,6 @@ import {
   SectionLead,
   Skeleton,
   SolanaIcon,
-  WalletButton,
 } from "@/components/ui";
 import { useBountiesQuery } from "@/features/bounty-board";
 import { mapTiraiError } from "@/lib/errors";
@@ -65,14 +64,11 @@ export function BountiesListPage() {
             {heading}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/bounties/new">
-            <Button variant="primary" size="md">
-              New bounty
-            </Button>
-          </Link>
-          <WalletButton />
-        </div>
+        <Link href="/bounties/new">
+          <Button variant="primary" size="md">
+            New bounty
+          </Button>
+        </Link>
       </div>
       <SectionLead>
         Browse open bug bounties. Anyone can apply with a wallet — payouts are
@@ -120,11 +116,7 @@ function FilterTabs<T extends string>({
   onChange,
 }: FilterTabsProps<T>) {
   return (
-    <div
-      className="flex items-center gap-2"
-      role="group"
-      aria-label={label}
-    >
+    <div className="flex items-center gap-2" role="group" aria-label={label}>
       <span className="text-muted font-mono text-[11px] uppercase tracking-[0.18em]">
         {label}
       </span>
@@ -193,9 +185,7 @@ function renderList({
         : statusFilter === "open"
           ? "Be the first to post one. Click 'New bounty' above."
           : `No ${statusFilter} bounties yet.`;
-    return (
-      <EmptyState title="Nothing here" description={description} />
-    );
+    return <EmptyState title="Nothing here" description={description} />;
   }
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

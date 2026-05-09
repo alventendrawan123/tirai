@@ -52,17 +52,18 @@ export function PaySuccessCard({
         <p className="text-secondary text-xs leading-relaxed">
           {recipientContactHandle ? (
             <>
-              Send the claim ticket below to <strong>{recipientContactHandle}</strong> via
-              Telegram / email / DM. <strong>Tirai never transmits tickets</strong> —
-              that&apos;s how we keep the payment unlinkable to the recipient
-              wallet on-chain.
+              Send the claim ticket below to{" "}
+              <strong>{recipientContactHandle}</strong> via Telegram / email /
+              DM. <strong>Tirai never transmits tickets</strong> — that&apos;s
+              how we keep the payment unlinkable to the recipient wallet
+              on-chain.
             </>
           ) : (
             <>
               Send the claim ticket below to your accepted researcher via
-              Telegram / email / DM. <strong>Tirai never transmits tickets</strong> —
-              that&apos;s how we keep the payment unlinkable to the recipient
-              wallet on-chain.
+              Telegram / email / DM.{" "}
+              <strong>Tirai never transmits tickets</strong> — that&apos;s how
+              we keep the payment unlinkable to the recipient wallet on-chain.
             </>
           )}
         </p>

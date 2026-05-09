@@ -14,7 +14,6 @@ import {
   Skeleton,
   SolanaIcon,
   WalletAuthButton,
-  WalletButton,
 } from "@/components/ui";
 import {
   useApplicationsQuery,
@@ -58,10 +57,7 @@ export function BountyDetailPage({ bountyId }: BountyDetailPageProps) {
               : "Bounty"}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <WalletAuthButton />
-          <WalletButton />
-        </div>
+        <WalletAuthButton />
       </div>
 
       <div className="mt-8">
@@ -364,7 +360,8 @@ function ApplicationsSection({
           >
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted font-mono text-xs">
-                {app.applicantWallet.slice(0, 4)}…{app.applicantWallet.slice(-4)}
+                {app.applicantWallet.slice(0, 4)}…
+                {app.applicantWallet.slice(-4)}
               </span>
               <span className="text-muted font-mono text-xs uppercase tracking-[0.18em]">
                 {app.status}

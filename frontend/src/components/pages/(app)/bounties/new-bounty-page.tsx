@@ -124,7 +124,8 @@ export function NewBountyPage() {
     const days = Number(deadlineDays);
     const newErrors: Record<string, string> = {};
     if (title.trim().length === 0) newErrors.title = "Title required";
-    if (description.trim().length === 0) newErrors.description = "Description required";
+    if (description.trim().length === 0)
+      newErrors.description = "Description required";
     if (!Number.isFinite(reward) || reward <= 0)
       newErrors.rewardSol = "Reward must be > 0 SOL";
     if (!Number.isFinite(days) || days <= 0)
@@ -196,14 +197,11 @@ export function NewBountyPage() {
 
   return (
     <Container size="md" className="py-16 md:py-20">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionEyebrow>Bounty board · /bounties/new</SectionEyebrow>
-          <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
-            Post a bounty
-          </h1>
-        </div>
-        <WalletButton />
+      <div>
+        <SectionEyebrow>Bounty board · /bounties/new</SectionEyebrow>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
+          Post a bounty
+        </h1>
       </div>
       <SectionLead>
         Bounty metadata is public. Payment happens privately via Cloak after a
@@ -273,7 +271,9 @@ export function NewBountyPage() {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="deadlineDays">Deadline (days from now)</FieldLabel>
+            <FieldLabel htmlFor="deadlineDays">
+              Deadline (days from now)
+            </FieldLabel>
             <Input
               id="deadlineDays"
               type="number"

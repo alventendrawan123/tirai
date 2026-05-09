@@ -2,12 +2,7 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
-import {
-  Container,
-  SectionEyebrow,
-  SectionLead,
-  WalletButton,
-} from "@/components/ui";
+import { Container, SectionEyebrow, SectionLead } from "@/components/ui";
 import { useScanAuditQuery } from "@/features/audit";
 import { mapTiraiError } from "@/lib/errors";
 import { useCluster } from "@/providers";
@@ -60,14 +55,11 @@ export function AuditPage() {
 
   return (
     <Container size="xl" className="py-16 md:py-20">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionEyebrow>Auditor · /audit</SectionEyebrow>
-          <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
-            Audit dashboard
-          </h1>
-        </div>
-        <WalletButton />
+      <div>
+        <SectionEyebrow>Auditor · /audit</SectionEyebrow>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
+          Audit dashboard
+        </h1>
       </div>
       <SectionLead>
         Paste a viewing key to review payment history and export reports. The

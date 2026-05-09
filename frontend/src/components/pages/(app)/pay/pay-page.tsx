@@ -9,7 +9,6 @@ import {
   SectionEyebrow,
   SectionLead,
   WalletAuthButton,
-  WalletButton,
 } from "@/components/ui";
 import {
   type PayBountyAdapterInput,
@@ -47,7 +46,10 @@ export function PayPage() {
   const { submit, isPending, data, step, reset } = useBountyMutation();
   const updateBountyStatus = useUpdateBountyStatusMutation();
   const updateBountyStatusMutate = updateBountyStatus.mutate;
-  const bountyQuery = useBountyQuery({ id: bountyId, enabled: Boolean(bountyId) });
+  const bountyQuery = useBountyQuery({
+    id: bountyId,
+    enabled: Boolean(bountyId),
+  });
   const applicationsQuery = useApplicationsQuery({
     bountyId,
     enabled: Boolean(bountyId),
@@ -72,7 +74,9 @@ export function PayPage() {
     };
   }, [bountyData]);
 
-  const lockedFields = bountyData ? (["amountSol", "label"] as const) : undefined;
+  const lockedFields = bountyData
+    ? (["amountSol", "label"] as const)
+    : undefined;
 
   const handleSubmit = async (values: PayFormValues) => {
     const input: PayBountyAdapterInput = {
@@ -128,13 +132,7 @@ export function PayPage() {
         },
       },
     );
-  }, [
-    data,
-    bountyId,
-    session,
-    bountyData?.status,
-    updateBountyStatusMutate,
-  ]);
+  }, [data, bountyId, session, bountyData?.status, updateBountyStatusMutate]);
 
   const handleReset = () => {
     setSubmitted(null);
@@ -147,10 +145,8 @@ export function PayPage() {
     ? `Project · /pay · bounty ${bountyId.slice(0, 8)}…`
     : "Project · /pay";
 
-  const showAuthGateBanner =
-    Boolean(bountyId) && wallet.connected && !session;
-  const showSignInRequired =
-    Boolean(data?.ok && bountyId && !session);
+  const showAuthGateBanner = Boolean(bountyId) && wallet.connected && !session;
+  const showSignInRequired = Boolean(data?.ok && bountyId && !session);
 
   return (
     <Container size="md" className="py-16 md:py-20">
@@ -161,10 +157,7 @@ export function PayPage() {
             {bountyData ? `Pay: ${bountyData.title}` : "Pay a bounty"}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          {bountyId ? <WalletAuthButton /> : null}
-          <WalletButton />
-        </div>
+        {bountyId ? <WalletAuthButton /> : null}
       </div>
       <SectionLead>
         {bountyData

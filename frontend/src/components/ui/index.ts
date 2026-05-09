@@ -76,6 +76,7 @@ export {
   type SplitTextTag,
 } from "./split-text";
 export { Textarea, type TextareaProps } from "./textarea";
+export { ThemeToggle, type ThemeToggleProps } from "./theme-toggle";
 export { TiltedCard, type TiltedCardProps } from "./tilted-card";
 export { CloakIcon, type CloakIconProps } from "./cloak-icon";
 export { SolanaIcon, type SolanaIconProps } from "./solana-icon";
