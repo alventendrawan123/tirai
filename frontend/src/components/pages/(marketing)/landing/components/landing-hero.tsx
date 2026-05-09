@@ -1,4 +1,5 @@
 import {
+  CloakIcon,
   Container,
   DotGrid,
   RoleCtaButton,
@@ -31,11 +32,14 @@ export function LandingHero() {
         <p className="text-secondary mt-6 max-w-2xl text-lg leading-relaxed">
           Tirai severs the on-chain link between a researcher&apos;s identity
           and the payment they receive using zero-knowledge proofs over the{" "}
-          <ShinyText
-            text="Cloak Shield Pool"
-            className="font-medium"
-            speed={4}
-          />
+          <span className="inline-flex items-center gap-1.5 align-middle">
+            <CloakIcon size={20} className="rounded-full" />
+            <ShinyText
+              text="Cloak Shield Pool"
+              className="font-medium"
+              speed={4}
+            />
+          </span>
           . Observers see nothing. Auditors see what they need.
         </p>
         <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
