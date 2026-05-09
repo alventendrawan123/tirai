@@ -1,12 +1,31 @@
-import { env } from "./env";
+const PROXY_AUTH_PATH = "/api/auth";
+const PROXY_SUPABASE_PATH = "/api/supabase";
+const SSR_FALLBACK_ORIGIN = "http://localhost:3000";
+
+function origin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return SSR_FALLBACK_ORIGIN;
+}
 
 export const tiraiServices = {
-  supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
-  supabaseAnonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  authVerifierUrl: env.NEXT_PUBLIC_AUTH_VERIFIER_URL,
+  get supabaseUrl(): string {
+    return `${origin()}${PROXY_SUPABASE_PATH}`;
+  },
+  get supabaseAnonKey(): string {
+    return "proxied";
+  },
+  get authVerifierUrl(): string {
+    return `${origin()}${PROXY_AUTH_PATH}`;
+  },
 } as const;
 
 export const supabaseReadCtx = {
-  supabaseUrl: tiraiServices.supabaseUrl,
-  supabaseAnonKey: tiraiServices.supabaseAnonKey,
+  get supabaseUrl(): string {
+    return tiraiServices.supabaseUrl;
+  },
+  get supabaseAnonKey(): string {
+    return tiraiServices.supabaseAnonKey;
+  },
 } as const;
