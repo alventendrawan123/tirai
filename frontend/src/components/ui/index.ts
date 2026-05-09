@@ -80,6 +80,10 @@ export { TiltedCard, type TiltedCardProps } from "./tilted-card";
 export { TokenAmount, type TokenAmountProps } from "./token-amount";
 export { TxStatus, type TxStatusKind, type TxStatusProps } from "./tx-status";
 export {
+  AutocompleteInput,
+  type AutocompleteInputProps,
+} from "./autocomplete-input";
+export {
   AuthServerStatus,
   type AuthServerStatusProps,
 } from "./auth-server-status";

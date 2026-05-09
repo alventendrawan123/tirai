@@ -19,6 +19,8 @@ export interface PaySuccessCardProps {
   label: string;
   cluster: Cluster;
   onReset: () => void;
+  recipientContactHandle?: string;
+  bountyTitle?: string;
 }
 
 export function PaySuccessCard({
@@ -27,8 +29,14 @@ export function PaySuccessCard({
   label,
   cluster,
   onReset,
+  recipientContactHandle,
+  bountyTitle,
 }: PaySuccessCardProps) {
   const explorerCluster = cluster === "mainnet" ? "mainnet" : "devnet";
+  const handoffMessage = buildHandoffMessage({
+    bountyTitle: bountyTitle ?? label,
+    ticket: result.ticket.raw,
+  });
   return (
     <Card>
       <CardHeader>
@@ -37,6 +45,35 @@ export function PaySuccessCard({
           <TxStatus status="confirmed" />
         </div>
       </CardHeader>
+      <CardContent className="border-subtle bg-secondary mb-6 flex flex-col gap-3 rounded-md border p-4">
+        <p className="text-primary text-sm font-medium">
+          Next step — deliver the ticket off-chain
+        </p>
+        <p className="text-secondary text-xs leading-relaxed">
+          {recipientContactHandle ? (
+            <>
+              Send the claim ticket below to <strong>{recipientContactHandle}</strong> via
+              Telegram / email / DM. <strong>Tirai never transmits tickets</strong> —
+              that&apos;s how we keep the payment unlinkable to the recipient
+              wallet on-chain.
+            </>
+          ) : (
+            <>
+              Send the claim ticket below to your accepted researcher via
+              Telegram / email / DM. <strong>Tirai never transmits tickets</strong> —
+              that&apos;s how we keep the payment unlinkable to the recipient
+              wallet on-chain.
+            </>
+          )}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <CopyToClipboard
+            value={handoffMessage}
+            label="Copy ready-to-send message"
+          />
+          <CopyToClipboard value={result.ticket.raw} label="Copy ticket only" />
+        </div>
+      </CardContent>
       <CardContent className="flex flex-col gap-6 lg:flex-row">
         <div className="flex flex-col items-start gap-4">
           <QrCode value={result.ticket.raw} size={196} />
@@ -106,4 +143,22 @@ export function PaySuccessCard({
 function formatLamports(lamports: bigint): string {
   const sol = Number(lamports) / 1_000_000_000;
   return sol.toLocaleString(undefined, { maximumFractionDigits: 9 });
+}
+
+function buildHandoffMessage({
+  bountyTitle,
+  ticket,
+}: {
+  bountyTitle: string;
+  ticket: string;
+}): string {
+  return [
+    `Bounty payout: ${bountyTitle}`,
+    "",
+    "Open https://tirai.app/claim and paste the ticket below to claim your reward.",
+    "You can claim into your existing wallet, or generate a fresh wallet for max privacy.",
+    "",
+    "Ticket:",
+    ticket,
+  ].join("\n");
 }

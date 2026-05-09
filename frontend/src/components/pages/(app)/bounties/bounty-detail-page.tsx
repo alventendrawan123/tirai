@@ -114,6 +114,13 @@ function renderBounty({
   }
   const rewardSol = Number(bounty.rewardLamports) / LAMPORTS_PER_SOL;
   const deadlineDate = new Date(bounty.deadline).toLocaleString();
+  const applicationsList =
+    applicationsQuery.data?.ok === true
+      ? applicationsQuery.data.value
+      : undefined;
+  const hasAcceptedApplication =
+    applicationsList?.some((app) => app.status === "accepted") ?? false;
+  const applicationsLoading = applicationsQuery.isLoading;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
@@ -173,11 +180,38 @@ function renderBounty({
         ) : null}
 
         {isOwner && bounty.status === "open" ? (
-          <Link href={`/pay?bountyId=${bounty.id}`}>
-            <Button variant="primary" size="md" className="w-full">
-              Pay accepted researcher
-            </Button>
-          </Link>
+          <>
+            {hasAcceptedApplication ? (
+              <Link href={`/pay?bountyId=${bounty.id}`}>
+                <Button variant="primary" size="md" className="w-full">
+                  Pay accepted researcher
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full"
+                disabled
+                title="Accept an application before paying"
+              >
+                Pay accepted researcher
+              </Button>
+            )}
+            {!hasAcceptedApplication ? (
+              <p className="text-muted text-center text-xs leading-relaxed">
+                {applicationsLoading
+                  ? "Loading applications…"
+                  : (applicationsList?.length ?? 0) === 0
+                    ? "No applications yet — share the bounty link with researchers and wait for submissions."
+                    : "Review applications below and click Accept on one before paying."}
+              </p>
+            ) : (
+              <p className="text-muted text-center text-xs">
+                You posted this bounty — switch to a different wallet to apply.
+              </p>
+            )}
+          </>
         ) : null}
 
         {bounty.paymentSignature ? (
@@ -187,6 +221,39 @@ function renderBounty({
             </p>
             <p className="text-primary mt-1 break-all font-mono text-xs">
               {bounty.paymentSignature}
+            </p>
+          </div>
+        ) : null}
+
+        {isOwner && bounty.status === "paid" ? (
+          <div className="border-subtle bg-secondary text-secondary rounded-md border p-4 text-xs leading-relaxed">
+            <p className="text-primary font-medium">Ticket has been issued</p>
+            <p className="mt-2">
+              Cloak deposit confirmed. Send the claim ticket (shown after Pay)
+              to the accepted researcher off-chain — Telegram, email, or DM.
+              Tirai never transmits tickets, otherwise the payment could be
+              linked to the recipient wallet on-chain.
+            </p>
+            <p className="mt-2">
+              Lost the ticket? Re-derive from your viewing key on{" "}
+              <a href="/audit" className="text-primary underline">
+                /audit
+              </a>{" "}
+              (look for the latest deposit signature).
+            </p>
+          </div>
+        ) : null}
+
+        {!isOwner && bounty.status === "paid" ? (
+          <div className="border-subtle bg-secondary text-secondary rounded-md border p-4 text-xs leading-relaxed">
+            <p className="text-primary font-medium">Bounty already paid</p>
+            <p className="mt-2">
+              The owner has paid this bounty. If you were the accepted
+              researcher, check your DMs for the claim ticket and paste it on{" "}
+              <a href="/claim" className="text-primary underline">
+                /claim
+              </a>
+              .
             </p>
           </div>
         ) : null}

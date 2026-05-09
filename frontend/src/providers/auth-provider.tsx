@@ -37,12 +37,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     if (!session) return;
-    const ms = session.expiresAt * 1000 - Date.now();
-    if (ms <= 0) {
+    const remainingMs = session.expiresAt - Date.now();
+    if (remainingMs <= 0) {
       setSession(null);
       return;
     }
-    const timer = window.setTimeout(() => setSession(null), ms);
+    const cappedMs = Math.min(remainingMs, 2_147_483_000);
+    const timer = window.setTimeout(() => setSession(null), cappedMs);
     return () => window.clearTimeout(timer);
   }, [session]);
 

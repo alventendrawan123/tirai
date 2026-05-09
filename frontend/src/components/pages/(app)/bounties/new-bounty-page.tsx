@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import {
+  AutocompleteInput,
   Button,
   Container,
   Field,
@@ -23,6 +24,84 @@ import { mapTiraiError } from "@/lib/errors";
 import { useAuth } from "@/providers";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
+
+const TITLE_TEMPLATES: ReadonlyArray<{
+  title: string;
+  description: string;
+}> = [
+  {
+    title: "Find XSS in admin panel",
+    description:
+      "Looking for stored or reflected XSS in /admin routes.\n\nScope:\n- /admin/users\n- /admin/settings\n\nProof required: working PoC with payload + impacted user role.",
+  },
+  {
+    title: "SQL injection in API endpoints",
+    description:
+      "Hunt for SQLi in any public REST endpoint.\n\nScope: every route under /api/*.\nOut of scope: /api/internal/*.\n\nProof: extract version() or current_user() from prod-like environment.",
+  },
+  {
+    title: "Authentication bypass",
+    description:
+      "Bypass session checks, JWT validation, or 2FA.\n\nScope: login flow, password reset, OAuth callbacks.\n\nProof: access another user's account without their credentials.",
+  },
+  {
+    title: "Smart contract audit (Anchor program)",
+    description:
+      "Review the on-chain program for logic flaws, reentrancy, integer over/underflow, missing access control.\n\nScope: programs/* (devnet deployed).\n\nProof: failing test case or annotated PoC tx.",
+  },
+  {
+    title: "RCE vulnerability hunt",
+    description:
+      "Remote code execution on any service we own.\n\nProof: callback to controlled DNS or file read of /etc/passwd equivalent.",
+  },
+  {
+    title: "CSRF protection review",
+    description:
+      "Identify state-changing endpoints missing CSRF tokens or SameSite cookie protection.\n\nProof: cross-origin form that triggers state change.",
+  },
+  {
+    title: "Privilege escalation bug",
+    description:
+      "Move from a low-privileged user role to higher privileges.\n\nProof: user → admin transition without admin credentials.",
+  },
+  {
+    title: "Open redirect on login flow",
+    description:
+      "Find an open redirect chained with auth.\n\nProof: post-login redirect to attacker-controlled domain that leaks tokens.",
+  },
+  {
+    title: "Sensitive data exposure",
+    description:
+      "Find PII, secrets, or API keys exposed in JS bundles, error pages, or public endpoints.\n\nProof: extracted credential + provenance.",
+  },
+  {
+    title: "Broken access control review",
+    description:
+      "IDOR, missing object-level checks, exposed admin routes.\n\nProof: read or modify another tenant's data.",
+  },
+  {
+    title: "SSRF in webhooks / image proxy",
+    description:
+      "Server-side request forgery via user-supplied URLs.\n\nProof: hit internal metadata endpoint (169.254.169.254) or internal-only service.",
+  },
+  {
+    title: "Deserialization vulnerability",
+    description:
+      "Untrusted deserialization in any endpoint accepting binary or pickled payloads.\n\nProof: gadget chain → code execution or DoS.",
+  },
+];
+
+const TITLE_SUGGESTIONS = TITLE_TEMPLATES.map((t) => t.title);
+const TEMPLATE_BY_TITLE = new Map(TITLE_TEMPLATES.map((t) => [t.title, t]));
+
+const ELIGIBILITY_SUGGESTIONS: ReadonlyArray<string> = [
+  "Open to all",
+  "Verified researchers only",
+  "First-time submitters welcome",
+  "KYC required for payout",
+  "Solana-focused researchers preferred",
+  "Whitelisted wallets only",
+];
 
 export function NewBountyPage() {
   const wallet = useWallet();
@@ -133,14 +212,25 @@ export function NewBountyPage() {
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-6">
         <Field>
           <FieldLabel htmlFor="title">Title</FieldLabel>
-          <Input
+          <AutocompleteInput
             id="title"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={setTitle}
+            onSelectSuggestion={(picked) => {
+              const template = TEMPLATE_BY_TITLE.get(picked);
+              if (template && description.trim().length === 0) {
+                setDescription(template.description);
+              }
+            }}
+            suggestions={TITLE_SUGGESTIONS}
             maxLength={120}
             placeholder="Find XSS in admin panel"
+            emptyHint="No template matches — write your own"
           />
-          <FieldHint>1-120 characters</FieldHint>
+          <FieldHint>
+            1-120 characters. Pick a template to autofill description, or write
+            your own.
+          </FieldHint>
           {errors.title ? <FieldError>{errors.title}</FieldError> : null}
         </Field>
 
@@ -194,12 +284,14 @@ export function NewBountyPage() {
 
         <Field>
           <FieldLabel htmlFor="eligibility">Eligibility (optional)</FieldLabel>
-          <Input
+          <AutocompleteInput
             id="eligibility"
             value={eligibility}
-            onChange={(e) => setEligibility(e.target.value)}
+            onChange={setEligibility}
+            suggestions={ELIGIBILITY_SUGGESTIONS}
             placeholder="Open to all"
           />
+          <FieldHint>Free-form. Suggestions are common patterns.</FieldHint>
         </Field>
 
         <div className="flex justify-end gap-2">

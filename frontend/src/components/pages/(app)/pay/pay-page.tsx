@@ -2,7 +2,8 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Container,
   SectionEyebrow,
@@ -15,6 +16,7 @@ import {
   useBountyMutation,
 } from "@/features/bounty";
 import {
+  useApplicationsQuery,
   useBountyQuery,
   useUpdateBountyStatusMutation,
 } from "@/features/bounty-board";
@@ -44,8 +46,19 @@ export function PayPage() {
   const bountyId = searchParams.get("bountyId");
   const { submit, isPending, data, step, reset } = useBountyMutation();
   const updateBountyStatus = useUpdateBountyStatusMutation();
+  const updateBountyStatusMutate = updateBountyStatus.mutate;
   const bountyQuery = useBountyQuery({ id: bountyId, enabled: Boolean(bountyId) });
+  const applicationsQuery = useApplicationsQuery({
+    bountyId,
+    enabled: Boolean(bountyId),
+  });
+  const acceptedApplication =
+    applicationsQuery.data?.ok === true
+      ? applicationsQuery.data.value.find((app) => app.status === "accepted")
+      : undefined;
   const [submitted, setSubmitted] = useState<SubmittedSnapshot | null>(null);
+  const markedSignatureRef = useRef<string | null>(null);
+  const pendingSignatureRef = useRef<string | null>(null);
 
   const bountyData =
     bountyQuery.data?.ok === true ? bountyQuery.data.value : undefined;
@@ -78,23 +91,66 @@ export function PayPage() {
   };
 
   useEffect(() => {
-    if (!data?.ok || !bountyId || !session) return;
+    if (!data?.ok || !bountyId) return;
     if (bountyData?.status !== "open") return;
-    updateBountyStatus.mutate({
-      id: bountyId,
-      status: "paid",
-      paymentSignature: data.value.signature,
-    });
-  }, [data, bountyId, session, bountyData?.status, updateBountyStatus]);
+    const signature = data.value.signature;
+    if (markedSignatureRef.current === signature) return;
+
+    if (!session) {
+      pendingSignatureRef.current = signature;
+      return;
+    }
+
+    pendingSignatureRef.current = null;
+    markedSignatureRef.current = signature;
+    updateBountyStatusMutate(
+      {
+        id: bountyId,
+        status: "paid",
+        paymentSignature: signature,
+      },
+      {
+        onSuccess: (result) => {
+          if (result.ok) {
+            toast.success("Bounty marked as paid");
+          } else {
+            markedSignatureRef.current = null;
+            pendingSignatureRef.current = signature;
+            toast.error(
+              `Could not mark bounty as paid: ${mapTiraiError(result.error).message}`,
+            );
+          }
+        },
+        onError: (error) => {
+          markedSignatureRef.current = null;
+          pendingSignatureRef.current = signature;
+          toast.error(`Could not mark bounty as paid: ${error.message}`);
+        },
+      },
+    );
+  }, [
+    data,
+    bountyId,
+    session,
+    bountyData?.status,
+    updateBountyStatusMutate,
+  ]);
 
   const handleReset = () => {
     setSubmitted(null);
     reset();
+    markedSignatureRef.current = null;
+    pendingSignatureRef.current = null;
   };
 
   const eyebrow = bountyId
     ? `Project · /pay · bounty ${bountyId.slice(0, 8)}…`
     : "Project · /pay";
+
+  const showAuthGateBanner =
+    Boolean(bountyId) && wallet.connected && !session;
+  const showSignInRequired =
+    Boolean(data?.ok && bountyId && !session);
 
   return (
     <Container size="md" className="py-16 md:py-20">
@@ -115,6 +171,27 @@ export function PayPage() {
           ? "Reward and label are locked from the bounty. Funds are sent privately via Cloak; the recipient is not linkable to your wallet on-chain."
           : "Connect your treasury wallet to fund a private bounty payment. The recipient will not be linkable to your wallet on-chain."}
       </SectionLead>
+
+      {showAuthGateBanner ? (
+        <div className="border-subtle bg-secondary text-secondary mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border p-4 text-sm">
+          <span>
+            Sign in with your wallet so we can mark this bounty as paid after
+            the Cloak deposit confirms.
+          </span>
+          <WalletAuthButton />
+        </div>
+      ) : null}
+
+      {showSignInRequired ? (
+        <div className="border-subtle bg-secondary text-secondary mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border p-4 text-sm">
+          <span>
+            Cloak deposit confirmed. Sign in with your wallet to mark this
+            bounty as paid in the public board.
+          </span>
+          <WalletAuthButton />
+        </div>
+      ) : null}
+
       <div className="mt-8">
         {renderPayState({
           isPending,
@@ -127,6 +204,8 @@ export function PayPage() {
           onReset: handleReset,
           initialFormValues,
           lockedFields: lockedFields ? Array.from(lockedFields) : undefined,
+          recipientContactHandle: acceptedApplication?.contactHandle,
+          bountyTitle: bountyData?.title,
         })}
       </div>
     </Container>
@@ -144,6 +223,8 @@ interface RenderArgs {
   onReset: () => void;
   initialFormValues?: Partial<PayFormValues>;
   lockedFields?: Array<keyof PayFormValues>;
+  recipientContactHandle?: string;
+  bountyTitle?: string;
 }
 
 function renderPayState({
@@ -157,6 +238,8 @@ function renderPayState({
   onReset,
   initialFormValues,
   lockedFields,
+  recipientContactHandle,
+  bountyTitle,
 }: RenderArgs) {
   if (isPending) {
     return <PayProgressCard current={step} />;
@@ -169,6 +252,10 @@ function renderPayState({
         label={submitted.label}
         cluster={cluster}
         onReset={onReset}
+        {...(recipientContactHandle !== undefined
+          ? { recipientContactHandle }
+          : {})}
+        {...(bountyTitle !== undefined ? { bountyTitle } : {})}
       />
     );
   }
