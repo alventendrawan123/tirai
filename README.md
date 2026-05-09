@@ -309,6 +309,17 @@ Receive ticket → Inspect (no tx) → Pick wallet mode → Claim (Cloak withdra
 4. Click *Claim*. Cloak SDK builds the withdrawal proof; the tx confirms; funds land at the chosen recipient.
 5. If fresh wallet was selected, a non-dismissible save-key dialog blocks until the user confirms they have stored the secret key.
 
+> **🔒 What "private payout" actually means here**
+>
+> When the researcher claims, the funds settle through the Cloak Shield Pool — and **the deposit ↔ withdrawal pair is cryptographically hidden**:
+>
+> - **The project never sees the researcher's destination wallet.** They signed a deposit into the pool; the recipient is chosen by the researcher at claim time and is never reported back to the project (not in the SDK return, not in Supabase, not in the auditor view).
+> - **The researcher's withdrawal does not reveal the project's wallet on-chain.** The withdrawal tx is just `Cloak Pool → recipient`. The Groth16 proof + Poseidon nullifier prove the claim is valid without naming which specific deposit it spends.
+> - **A public observer (Solscan, indexers) sees two unrelated transactions** to/from the pool — no on-chain edge connecting Wallet A (project) to Wallet B (researcher).
+> - **Choosing *fresh wallet* maximizes this** — Wallet B has zero prior history, so even off-chain de-anonymization (CEX cross-reference, NFT mint history) hits a dead end.
+>
+> Whatever the project and researcher know about each other off-chain (e.g. via `/bounties` metadata), the **on-chain payment edge does not exist**. That is the entire point of routing through Cloak.
+
 ### Auditor flow (`/audit`)
 
 ```
