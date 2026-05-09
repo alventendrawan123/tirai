@@ -27,6 +27,8 @@ import {
 import { mapTiraiError } from "@/lib/errors";
 import { useAuth } from "@/providers";
 
+const CONTACT_HANDLE_PATTERN = /^(@[a-zA-Z0-9_]{4,32}|(?:https?:\/\/)?t\.me\/[a-zA-Z0-9_]{5,32}|[a-zA-Z0-9_]{2,32}#\d{4,5})$/;
+
 export interface ApplyToBountyPageProps {
   bountyId: string;
 }
@@ -44,17 +46,26 @@ export function ApplyToBountyPage({ bountyId }: ApplyToBountyPageProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setErrors({});
+    const newErrors: Record<string, string> = {};
     if (submissionText.trim().length === 0) {
-      setErrors({ submissionText: "Submission required" });
+      newErrors.submissionText = "Submission required";
+    }
+    const handle = contactHandle.trim();
+    if (handle.length === 0) {
+      newErrors.contactHandle = "Contact handle required";
+    } else if (!CONTACT_HANDLE_PATTERN.test(handle)) {
+      newErrors.contactHandle =
+        "Use @username, t.me/username, or username#1234 (5+ chars)";
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+    setErrors({});
     const result = await applyMutation.mutateAsync({
       bountyId,
       submissionText: submissionText.trim(),
-      ...(contactHandle.trim().length > 0
-        ? { contactHandle: contactHandle.trim() }
-        : {}),
+      contactHandle: handle,
     });
     if (!result.ok) {
       const mapped = mapTiraiError(result.error);
@@ -157,19 +168,23 @@ export function ApplyToBountyPage({ bountyId }: ApplyToBountyPageProps) {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="contactHandle">
-            Contact handle (optional)
-          </FieldLabel>
+          <FieldLabel htmlFor="contactHandle">Contact handle</FieldLabel>
           <Input
             id="contactHandle"
             value={contactHandle}
             onChange={(e) => setContactHandle(e.target.value)}
-            placeholder="@bima_telegram"
+            placeholder="@crypto_hunter"
+            required
+            aria-invalid={errors.contactHandle ? "true" : undefined}
           />
           <FieldHint>
-            Owner uses this to send you the Cloak ticket off-chain when
-            accepted.
+            Required — owner uses this to send you the Cloak ticket off-chain
+            after accepting. Telegram (@user or t.me/user) or Discord
+            (user#1234).
           </FieldHint>
+          {errors.contactHandle ? (
+            <FieldError>{errors.contactHandle}</FieldError>
+          ) : null}
         </Field>
 
         <div className="flex justify-end gap-2">
