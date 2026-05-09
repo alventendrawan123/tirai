@@ -2,6 +2,7 @@
 
 import "@/lib/polyfills/node";
 import type { ReactNode } from "react";
+import { AuthProvider } from "./auth-provider";
 import { ClusterProvider } from "./cluster-provider";
 import { QueryProvider } from "./query-provider";
 import { ThemeProvider } from "./theme-provider";
@@ -18,8 +19,10 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ClusterProvider>
         <QueryProvider>
           <WalletProvider>
-            {children}
-            <ToastProvider />
+            <AuthProvider>
+              {children}
+              <ToastProvider />
+            </AuthProvider>
           </WalletProvider>
         </QueryProvider>
       </ClusterProvider>

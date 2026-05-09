@@ -1,4 +1,4 @@
-import { Container, NetworkBadge } from "@/components/ui";
+import { AuthServerStatus, Container, NetworkBadge } from "@/components/ui";
 
 export function Footer() {
   return (
@@ -22,6 +22,8 @@ export function Footer() {
           >
             GitHub
           </a>
+          <span aria-hidden="true">·</span>
+          <AuthServerStatus />
           <span aria-hidden="true">·</span>
           <NetworkBadge cluster="devnet" />
         </div>

@@ -1,19 +1,25 @@
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   Container,
   SectionEyebrow,
   SectionLead,
+  WalletAuthButton,
   WalletButton,
 } from "@/components/ui";
 import {
   type PayBountyAdapterInput,
   useBountyMutation,
 } from "@/features/bounty";
+import {
+  useBountyQuery,
+  useUpdateBountyStatusMutation,
+} from "@/features/bounty-board";
 import { mapTiraiError } from "@/lib/errors";
-import { useCluster } from "@/providers";
+import { useAuth, useCluster } from "@/providers";
 import {
   PayErrorCard,
   PayFormCard,
@@ -33,8 +39,27 @@ interface SubmittedSnapshot {
 export function PayPage() {
   const wallet = useWallet();
   const { cluster } = useCluster();
+  const { session } = useAuth();
+  const searchParams = useSearchParams();
+  const bountyId = searchParams.get("bountyId");
   const { submit, isPending, data, step, reset } = useBountyMutation();
+  const updateBountyStatus = useUpdateBountyStatusMutation();
+  const bountyQuery = useBountyQuery({ id: bountyId, enabled: Boolean(bountyId) });
   const [submitted, setSubmitted] = useState<SubmittedSnapshot | null>(null);
+
+  const bountyData =
+    bountyQuery.data?.ok === true ? bountyQuery.data.value : undefined;
+
+  const initialFormValues = useMemo<Partial<PayFormValues> | undefined>(() => {
+    if (!bountyData) return undefined;
+    const sol = Number(bountyData.rewardLamports) / LAMPORTS_PER_SOL;
+    return {
+      amountSol: sol.toString(),
+      label: bountyData.title,
+    };
+  }, [bountyData]);
+
+  const lockedFields = bountyData ? (["amountSol", "label"] as const) : undefined;
 
   const handleSubmit = async (values: PayFormValues) => {
     const input: PayBountyAdapterInput = {
@@ -52,25 +77,43 @@ export function PayPage() {
     }
   };
 
+  useEffect(() => {
+    if (!data?.ok || !bountyId || !session) return;
+    if (bountyData?.status !== "open") return;
+    updateBountyStatus.mutate({
+      id: bountyId,
+      status: "paid",
+      paymentSignature: data.value.signature,
+    });
+  }, [data, bountyId, session, bountyData?.status, updateBountyStatus]);
+
   const handleReset = () => {
     setSubmitted(null);
     reset();
   };
 
+  const eyebrow = bountyId
+    ? `Project · /pay · bounty ${bountyId.slice(0, 8)}…`
+    : "Project · /pay";
+
   return (
     <Container size="md" className="py-16 md:py-20">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <SectionEyebrow>Project · /pay</SectionEyebrow>
+          <SectionEyebrow>{eyebrow}</SectionEyebrow>
           <h1 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
-            Pay a bounty
+            {bountyData ? `Pay: ${bountyData.title}` : "Pay a bounty"}
           </h1>
         </div>
-        <WalletButton />
+        <div className="flex items-center gap-2">
+          {bountyId ? <WalletAuthButton /> : null}
+          <WalletButton />
+        </div>
       </div>
       <SectionLead>
-        Connect your treasury wallet to fund a private bounty payment. The
-        recipient will not be linkable to your wallet on-chain.
+        {bountyData
+          ? "Reward and label are locked from the bounty. Funds are sent privately via Cloak; the recipient is not linkable to your wallet on-chain."
+          : "Connect your treasury wallet to fund a private bounty payment. The recipient will not be linkable to your wallet on-chain."}
       </SectionLead>
       <div className="mt-8">
         {renderPayState({
@@ -82,6 +125,8 @@ export function PayPage() {
           walletConnected: Boolean(wallet.publicKey),
           onSubmit: handleSubmit,
           onReset: handleReset,
+          initialFormValues,
+          lockedFields: lockedFields ? Array.from(lockedFields) : undefined,
         })}
       </div>
     </Container>
@@ -97,6 +142,8 @@ interface RenderArgs {
   walletConnected: boolean;
   onSubmit: (values: PayFormValues) => Promise<void>;
   onReset: () => void;
+  initialFormValues?: Partial<PayFormValues>;
+  lockedFields?: Array<keyof PayFormValues>;
 }
 
 function renderPayState({
@@ -108,6 +155,8 @@ function renderPayState({
   walletConnected,
   onSubmit,
   onReset,
+  initialFormValues,
+  lockedFields,
 }: RenderArgs) {
   if (isPending) {
     return <PayProgressCard current={step} />;
@@ -131,6 +180,10 @@ function renderPayState({
       walletConnected={walletConnected}
       onSubmit={onSubmit}
       disabled={isPending}
+      {...(initialFormValues !== undefined
+        ? { initialValues: initialFormValues }
+        : {})}
+      {...(lockedFields !== undefined ? { lockedFields } : {})}
     />
   );
 }

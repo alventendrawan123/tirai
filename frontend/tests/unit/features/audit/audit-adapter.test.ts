@@ -27,7 +27,12 @@ describe("scanAuditAdapter", () => {
     await scanAuditAdapter("v".repeat(64), { connection, cluster: "devnet" });
     expect(scanAuditHistory).toHaveBeenCalledWith(
       { viewingKey: "v".repeat(64) },
-      { connection, cluster: "devnet" },
+      expect.objectContaining({
+        connection,
+        cluster: "devnet",
+        supabaseUrl: expect.any(String),
+        supabaseAnonKey: expect.any(String),
+      }),
     );
   });
 

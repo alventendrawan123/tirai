@@ -1,4 +1,5 @@
 export { AppProviders, type AppProvidersProps } from "./app-providers";
+export { AuthProvider, type AuthProviderProps, useAuth } from "./auth-provider";
 export {
   ClusterProvider,
   type ClusterProviderProps,

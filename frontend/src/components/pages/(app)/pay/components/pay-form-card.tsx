@@ -26,17 +26,21 @@ export interface PayFormCardProps {
   walletConnected: boolean;
   onSubmit: (values: PayFormValues) => void | Promise<void>;
   disabled?: boolean;
+  initialValues?: Partial<PayFormValues>;
+  lockedFields?: Array<keyof PayFormValues>;
 }
 
 export function PayFormCard({
   walletConnected,
   onSubmit,
   disabled,
+  initialValues,
+  lockedFields,
 }: PayFormCardProps) {
   const [values, setValues] = useState<PayFormValues>({
-    amountSol: "0.1",
-    label: "Test bounty",
-    memo: "",
+    amountSol: initialValues?.amountSol ?? "0.1",
+    label: initialValues?.label ?? "Test bounty",
+    memo: initialValues?.memo ?? "",
   });
   const [errors, setErrors] = useState<PayFormErrors>({});
 
@@ -77,6 +81,8 @@ export function PayFormCard({
 
   const previewLamports = previewAmount(values.amountSol);
   const submitDisabled = disabled || !walletConnected;
+  const isLocked = (key: keyof PayFormValues) =>
+    lockedFields?.includes(key) === true;
 
   return (
     <Card>
@@ -93,7 +99,8 @@ export function PayFormCard({
               placeholder="0.00"
               value={values.amountSol}
               onChange={setField("amountSol")}
-              disabled={submitDisabled}
+              disabled={submitDisabled || isLocked("amountSol")}
+              readOnly={isLocked("amountSol")}
               aria-invalid={errors.amountSol ? "true" : undefined}
             />
             <FieldHint>
@@ -111,7 +118,8 @@ export function PayFormCard({
               maxLength={64}
               value={values.label}
               onChange={setField("label")}
-              disabled={submitDisabled}
+              disabled={submitDisabled || isLocked("label")}
+              readOnly={isLocked("label")}
               aria-invalid={errors.label ? "true" : undefined}
             />
             <FieldHint>Internal reference. Max 64 characters.</FieldHint>
