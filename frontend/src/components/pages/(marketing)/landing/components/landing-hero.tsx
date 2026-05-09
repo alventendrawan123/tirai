@@ -1,3 +1,4 @@
+import Image from "next/image";
 import {
   CloakIcon,
   Container,
@@ -21,14 +22,24 @@ export function LandingHero() {
         />
       </div>
       <Container size="xl" className="relative py-24 md:py-32">
-        <SplitText
-          tag="h1"
-          text="Privacy-first bounty payouts for Solana whitehats."
-          className="text-primary mt-6 max-w-3xl text-4xl leading-[1.1] font-medium tracking-tight md:text-6xl"
-          delay={28}
-          duration={1}
-          textAlign="left"
-        />
+        <div className="flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between md:gap-12">
+          <SplitText
+            tag="h1"
+            text="Privacy-first bounty payouts for Solana whitehats."
+            className="text-primary mt-6 max-w-3xl text-4xl leading-[1.1] font-medium tracking-tight md:text-6xl"
+            delay={28}
+            duration={1}
+            textAlign="left"
+          />
+          <Image
+            src="/Assets/Images/Logo/tirai-logo.svg"
+            alt="Tirai"
+            width={320}
+            height={320}
+            priority
+            className="h-32 w-32 shrink-0 md:h-56 md:w-56 lg:h-64 lg:w-64 dark:invert"
+          />
+        </div>
         <p className="text-secondary mt-6 max-w-2xl text-lg leading-relaxed">
           Tirai severs the on-chain link between a researcher&apos;s identity
           and the payment they receive using zero-knowledge proofs over the{" "}

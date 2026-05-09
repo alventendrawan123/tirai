@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -28,11 +29,15 @@ export function Header() {
     <header className="border-subtle bg-main sticky top-0 z-30 border-b backdrop-blur-none">
       <Container size="xl" className="flex h-16 items-center justify-between">
         <div className="flex items-center gap-10">
-          <Link
-            href="/"
-            className="text-primary font-mono text-sm font-medium tracking-[0.18em] uppercase"
-          >
-            Tirai
+          <Link href="/" aria-label="Tirai home" className="inline-flex items-center">
+            <Image
+              src="/Assets/Images/Logo/tirai-logo.svg"
+              alt="Tirai"
+              width={32}
+              height={32}
+              priority
+              className="h-8 w-8 dark:invert"
+            />
           </Link>
           <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
             {NAV_LINKS.map((link) => {
