@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { formatTokenAmount } from "@/lib/web3";
+import { SolanaIcon } from "./solana-icon";
 
 export interface TokenAmountProps {
   raw: bigint;
@@ -17,6 +18,13 @@ const SIZE_STYLES: Record<NonNullable<TokenAmountProps["size"]>, string> = {
   xl: "text-4xl md:text-5xl",
 };
 
+const ICON_SIZE: Record<NonNullable<TokenAmountProps["size"]>, number> = {
+  sm: 12,
+  md: 14,
+  lg: 18,
+  xl: 26,
+};
+
 export function TokenAmount({
   raw,
   decimals,
@@ -26,8 +34,9 @@ export function TokenAmount({
   maximumFractionDigits,
 }: TokenAmountProps) {
   const formatted = formatTokenAmount(raw, decimals, { maximumFractionDigits });
+  const isSol = symbol === "SOL";
   return (
-    <span className={cn("inline-flex items-baseline gap-1.5", className)}>
+    <span className={cn("inline-flex items-center gap-1.5", className)}>
       <span
         className={cn(
           "text-primary font-mono font-medium tracking-tight tabular-nums",
@@ -36,8 +45,9 @@ export function TokenAmount({
       >
         {formatted}
       </span>
-      <span className="text-secondary font-mono text-xs uppercase tracking-[0.16em]">
+      <span className="text-secondary inline-flex items-center gap-1 font-mono text-xs uppercase tracking-[0.16em]">
         {symbol}
+        {isSol ? <SolanaIcon size={ICON_SIZE[size]} /> : null}
       </span>
     </span>
   );

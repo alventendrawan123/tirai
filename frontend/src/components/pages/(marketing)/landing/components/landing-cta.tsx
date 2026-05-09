@@ -21,9 +21,9 @@ export function LandingCta() {
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <RoleCtaButton
-                href="/pay"
+                href="/bounties"
                 intent="pay"
-                label="Pay a bounty"
+                label="Explore bounties"
                 hint="Project treasury"
                 variant="primary"
               />

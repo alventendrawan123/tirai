@@ -26,12 +26,6 @@ const INTENT_ICON: Record<RoleCtaIntent, ReactNode> = {
   audit: <Eye className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />,
 };
 
-const INTENT_KICKER: Record<RoleCtaIntent, string> = {
-  pay: "01",
-  claim: "02",
-  audit: "03",
-};
-
 export function RoleCtaButton({
   href,
   intent,
@@ -65,9 +59,6 @@ export function RoleCtaButton({
           {INTENT_ICON[intent]}
         </span>
         <span className="flex flex-col items-start leading-tight">
-          <span className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-60">
-            {INTENT_KICKER[intent]} · {intent}
-          </span>
           <span className="text-[15px] font-medium">{label}</span>
         </span>
       </span>

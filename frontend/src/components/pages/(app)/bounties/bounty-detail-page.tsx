@@ -12,6 +12,7 @@ import {
   SectionEyebrow,
   SectionLead,
   Skeleton,
+  SolanaIcon,
   WalletAuthButton,
   WalletButton,
 } from "@/components/ui";
@@ -158,8 +159,9 @@ function renderBounty({
           <p className="text-muted font-mono text-xs uppercase tracking-[0.18em]">
             Reward
           </p>
-          <p className="text-primary mt-2 font-mono text-2xl">
+          <p className="text-primary mt-2 inline-flex items-center gap-2 font-mono text-2xl">
             {rewardSol.toFixed(4)} SOL
+            <SolanaIcon size={20} />
           </p>
           <p className="text-muted mt-3 font-mono text-xs uppercase tracking-[0.18em]">
             Deadline

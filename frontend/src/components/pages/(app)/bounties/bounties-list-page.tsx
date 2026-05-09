@@ -10,6 +10,7 @@ import {
   SectionEyebrow,
   SectionLead,
   Skeleton,
+  SolanaIcon,
   WalletButton,
 } from "@/components/ui";
 import { useBountiesQuery } from "@/features/bounty-board";
@@ -223,8 +224,9 @@ function BountyCard({ bounty }: { bounty: Bounty }) {
         {bounty.description}
       </p>
       <div className="border-subtle text-muted mt-auto flex items-center justify-between border-t pt-3 text-xs">
-        <span className="text-primary font-mono text-base">
+        <span className="text-primary inline-flex items-center gap-1.5 font-mono text-base">
           {rewardSol.toFixed(4)} SOL
+          <SolanaIcon size={14} />
         </span>
         <span>Deadline {deadlineDate}</span>
       </div>

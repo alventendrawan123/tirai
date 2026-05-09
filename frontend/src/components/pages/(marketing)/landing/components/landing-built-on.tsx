@@ -1,13 +1,31 @@
 import {
+  CloakIcon,
   Container,
   type LogoItem,
   LogoLoop,
   SectionEyebrow,
+  SolanaIcon,
 } from "@/components/ui";
 
 const LOGOS: LogoItem[] = [
-  { node: "Solana" },
-  { node: "Cloak SDK" },
+  {
+    node: (
+      <span className="inline-flex items-center gap-2">
+        <SolanaIcon size={20} />
+        Solana
+      </span>
+    ),
+    ariaLabel: "Solana",
+  },
+  {
+    node: (
+      <span className="inline-flex items-center gap-2">
+        <CloakIcon size={20} />
+        Cloak SDK
+      </span>
+    ),
+    ariaLabel: "Cloak SDK",
+  },
   { node: "Groth16" },
   { node: "Poseidon" },
   { node: "Phantom" },

@@ -77,6 +77,8 @@ export {
 } from "./split-text";
 export { Textarea, type TextareaProps } from "./textarea";
 export { TiltedCard, type TiltedCardProps } from "./tilted-card";
+export { CloakIcon, type CloakIconProps } from "./cloak-icon";
+export { SolanaIcon, type SolanaIconProps } from "./solana-icon";
 export { TokenAmount, type TokenAmountProps } from "./token-amount";
 export { TxStatus, type TxStatusKind, type TxStatusProps } from "./tx-status";
 export {

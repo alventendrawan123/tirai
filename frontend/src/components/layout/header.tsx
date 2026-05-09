@@ -29,7 +29,7 @@ export function Header() {
           >
             Tirai
           </Link>
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+          <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
             {NAV_LINKS.map((link) => {
               const active = isActive(link.href, pathname);
               return (
@@ -38,13 +38,17 @@ export function Header() {
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    active
-                      ? "text-primary bg-secondary border-strong border"
-                      : "text-muted hover:text-primary hover:bg-secondary border border-transparent",
+                    "relative py-2 text-sm font-medium transition-colors",
+                    active ? "text-primary" : "text-muted hover:text-primary",
                   )}
                 >
                   {link.label}
+                  {active ? (
+                    <span
+                      aria-hidden="true"
+                      className="border-strong absolute -bottom-px left-0 right-0 border-b"
+                    />
+                  ) : null}
                 </Link>
               );
             })}

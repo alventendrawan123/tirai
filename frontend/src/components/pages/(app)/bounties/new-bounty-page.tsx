@@ -15,6 +15,7 @@ import {
   Input,
   SectionEyebrow,
   SectionLead,
+  SolanaIcon,
   Textarea,
   WalletAuthButton,
   WalletButton,
@@ -252,7 +253,12 @@ export function NewBountyPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field>
-            <FieldLabel htmlFor="rewardSol">Reward (SOL)</FieldLabel>
+            <FieldLabel htmlFor="rewardSol">
+              <span className="inline-flex items-center gap-1.5">
+                Reward (SOL)
+                <SolanaIcon size={12} />
+              </span>
+            </FieldLabel>
             <Input
               id="rewardSol"
               type="number"
