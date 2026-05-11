@@ -11,6 +11,8 @@
 <p align="center">
   <a href="https://tirai-frontier.vercel.app">Live frontend</a>
   ·
+  <a href="https://youtu.be/VN-GBcPeGVc?si=qOHenGaY2Aoy9s_t">Demo video</a>
+  ·
   <a href="https://github.com/alventendrawan123/tirai">GitHub</a>
 </p>
 
@@ -367,6 +369,7 @@ Tirai enforces three guarantees, each at a different layer:
 | **Event** | Cloak Hackathon |
 | **Track** | Frontier |
 | **Live demo** | https://tirai-frontier.vercel.app |
+| **Demo video** | https://youtu.be/VN-GBcPeGVc?si=qOHenGaY2Aoy9s_t |
 | **Repo** | https://github.com/alventendrawan123/tirai |
 
 ---
